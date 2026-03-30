@@ -107,7 +107,7 @@
 - [x] P3-03 Implement parser — recursive descent, produce AST
 - [x] P3-04 Implement AST for: variable decl, assignment, arithmetic expr, if/else, while, for, function decl/call, return
 - [~] P3-05 Implement code generator — walk AST, emit 8080 instructions
-- [ ] P3-06 Code gen: global variables (at fixed addresses above TPA entry)
+- [x] P3-06 Code gen: global variables (at fixed addresses above TPA entry)
 - [ ] P3-07 Code gen: local variables (on 8080 stack)
 - [ ] P3-08 Code gen: arithmetic (+, -, *, /)
 - [ ] P3-09 Code gen: comparisons and conditional jumps
