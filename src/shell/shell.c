@@ -8,6 +8,8 @@
 #include <stddef.h>
 #include <string.h>
 
+#define SHELL_DISK_PATH "build/disk/disk.img"
+
 static int streq(const char *a, const char *b) {
     return strcmp(a, b) == 0;
 }
@@ -181,7 +183,7 @@ void shell_render_result(shell_t *sh, FILE *out, shell_cmd_t cmd, const char *ar
         case SHELL_CMD_NONE:
             break;
         case SHELL_CMD_DIR:
-            if (fs_init("disk.img") != 0) {
+            if (fs_init(SHELL_DISK_PATH) != 0) {
                 (void)fputs("?\n", out);
                 break;
             }
@@ -200,7 +202,7 @@ void shell_render_result(shell_t *sh, FILE *out, shell_cmd_t cmd, const char *ar
                 (void)fputs("?\n", out);
                 break;
             }
-            if (fs_init("disk.img") != 0) {
+            if (fs_init(SHELL_DISK_PATH) != 0) {
                 (void)fputs("?\n", out);
                 break;
             }
@@ -224,7 +226,7 @@ void shell_render_result(shell_t *sh, FILE *out, shell_cmd_t cmd, const char *ar
                 (void)fputs("?\n", out);
                 break;
             }
-            if (fs_init("disk.img") != 0) {
+            if (fs_init(SHELL_DISK_PATH) != 0) {
                 (void)fputs("?\n", out);
                 break;
             }
@@ -275,7 +277,7 @@ void shell_render_result(shell_t *sh, FILE *out, shell_cmd_t cmd, const char *ar
                 (void)fputs("?\n", out);
                 break;
             }
-            if (fs_init("disk.img") != 0 || fs_delete(arg) != 0) {
+            if (fs_init(SHELL_DISK_PATH) != 0 || fs_delete(arg) != 0) {
                 (void)fputs("?\n", out);
                 break;
             }

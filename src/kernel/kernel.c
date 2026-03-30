@@ -48,7 +48,7 @@ static void kernel_load_bios_vectors(void) {
 }
 
 static int kernel_load_shell_com(void) {
-    FILE *fp = fopen("bin/shell.com", "rb");
+    FILE *fp = fopen("build/bin/shell.com", "rb");
     int ch;
     addr_t addr = KERNEL_SHELL_LOAD_ADDR;
 

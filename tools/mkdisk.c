@@ -11,7 +11,8 @@ int main(void) {
         DIR_ENTRY_SIZE = 32
     };
 
-    FILE *fp = fopen("disk.img", "wb");
+    const char *out_path = "build/disk/disk.img";
+    FILE *fp = fopen(out_path, "wb");
     if (fp == NULL) {
         perror("fopen");
         return 1;
@@ -46,6 +47,6 @@ int main(void) {
         return 1;
     }
 
-    printf("Created disk.img (%ld bytes)\n", total_bytes);
+    printf("Created %s (%ld bytes)\n", out_path, total_bytes);
     return 0;
 }

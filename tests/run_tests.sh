@@ -137,4 +137,7 @@ cc -std=c99 -Wall -Wextra -Werror -pedantic \
 
 "${FS_SECTOR_TEST_BIN}"
 
+sh ./tests/integration/test_boot.sh
+sh ./tests/integration/test_halt.sh
+
 echo "All tests passed."

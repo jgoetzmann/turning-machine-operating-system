@@ -1,1 +1,5 @@
+# All generated build/test artifacts live here.
 build/
+
+# Safety guard for any legacy root-level disk artifact.
+disk.img

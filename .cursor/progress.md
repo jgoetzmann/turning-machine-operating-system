@@ -60,9 +60,9 @@
 - [x] P1-41 Kernel handles `KS_SYSCALL` transition from BIOS dispatch and back
 
 ### Disk Tool (`tools/mkdisk.c`)
-- [x] P1-42 Implement `mkdisk` host tool: creates a blank `disk.img` (77 tracks × 26 sectors × 256 bytes)
+- [x] P1-42 Implement `mkdisk` host tool: creates a blank `build/disk/disk.img` (77 tracks × 26 sectors × 256 bytes)
 - [x] P1-43 `mkdisk` writes a blank directory (64 entries of 0xE5) to track 0
-- [x] P1-44 `make disk` target calls `mkdisk` to produce fresh `disk.img`
+- [x] P1-44 `make disk` target calls `mkdisk` to produce fresh `build/disk/disk.img`
 
 ### Filesystem (`src/fs/fs.c`)
 - [x] P1-45 Implement `fs_init()` — open disk image, verify geometry
@@ -88,14 +88,14 @@
 - [x] P2-05 Implement `cc <file.c>` — invoke compiler
 - [x] P2-06 Implement `del`, `cls`, `mem`, `halt`, `help`
 - [x] P2-07 Implement line editing (backspace)
-- [x] P2-08 Add `make shell` target that compiles `shell.c` → `bin/shell.com`
-- [ ] P2-09 Integration test: boot OS, shell prompt appears, `dir` runs cleanly
+- [x] P2-08 Add `make shell` target that compiles `shell.c` → `build/bin/shell.com`
+- [x] P2-09 Integration test: boot OS, shell prompt appears, `dir` runs cleanly
 
 ### Boot
 - [x] P2-10 BOOT state loads BIOS jump table into `mem[0x0000..0x00FF]`
-- [x] P2-11 BOOT state loads `bin/shell.com` into `mem[0x0100..]` from disk or embedded blob
+- [x] P2-11 BOOT state loads `build/bin/shell.com` into `mem[0x0100..]` from disk or embedded blob
 - [x] P2-12 BOOT sets `cpu.pc = 0x0100` and transitions to SHELL
-- [ ] P2-13 Integration test: full boot sequence, shell prompt, `halt` command
+- [x] P2-13 Integration test: full boot sequence, shell prompt, `halt` command
 
 ---
 

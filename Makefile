@@ -3,7 +3,7 @@ CFLAGS := -std=c99 -Wall -Wextra -Werror -pedantic -I./src
 LDFLAGS :=
 
 BUILD_DIR := build
-BIN_DIR := bin
+BIN_DIR := $(BUILD_DIR)/bin
 TARGET := $(BUILD_DIR)/turingos
 
 SRC := \
@@ -37,6 +37,7 @@ test: all
 	./tests/run_tests.sh
 
 disk: $(BUILD_DIR)/mkdisk
+	@mkdir -p "$(BUILD_DIR)/disk"
 	"$(BUILD_DIR)/mkdisk"
 
 $(BUILD_DIR)/mkdisk: tools/mkdisk.c

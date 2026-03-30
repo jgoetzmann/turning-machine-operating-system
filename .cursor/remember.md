@@ -197,3 +197,15 @@ Updated `cc_compile` stub to emit a deterministic minimal `.com` binary (include
 ## [2026-03-30] kernel boot — BIOS vectors and shell.com loading
 Updated BOOT state to initialize `mem[0x0000..0x00FF]` (BIOS vector region) with a defined table image and to load `bin/shell.com` bytes into TPA starting at `0x0100` from the host filesystem.
 BOOT now sets `cpu.pc = 0x0100` and transitions to `KS_SHELL` directly. If shell loading fails, BOOT falls back to a `HLT` at `0x0100` to preserve deterministic termination in current stub mode.
+## [2026-03-30] integration — Added Phase 2 boot/halt scripts
+Added `tests/integration/test_boot.sh` and `tests/integration/test_halt.sh` and wired them into `tests/run_tests.sh`.
+Given the current stub runtime still exits immediately with `state=5`, integration assertions currently validate successful boot execution and HALT termination via `build/turingos` output checks; shell-interactive I/O assertions will need tightening once kernel-shell command loop is fully wired.
+## [2026-03-30] build/shell — Keep generated disk image under build/
+Adjusted disk generation so `mkdisk` now writes to `build/disk/disk.img` (and `make disk` ensures the parent folder exists) instead of emitting `disk.img` in the repo root.
+Updated shell filesystem command handlers to use the same build-scoped disk path, keeping runtime-generated artifacts out of the top-level repository workspace.
+## [2026-03-30] repo hygiene — Artifact locations normalized
+Clarified artifact policy in spec/progress: generated disk image lives in `build/disk/disk.img` and generated shell binary lives in `bin/shell.com`, both treated as non-source artifacts.
+Expanded `.gitignore` guidance to keep generated outputs out of commits, with `build/` as default sink and `bin/shell.com` explicitly ignored.
+## [2026-03-30] repo hygiene — Shell binary moved under build/
+Standardized all generated artifacts under `build/` by moving shell binary output from `bin/shell.com` to `build/bin/shell.com`.
+Updated producer/consumer paths (`make shell`, kernel boot loader, spec/progress docs) so runtime loading now targets `build/bin/shell.com`; `.gitignore` now relies on `build/` instead of a separate top-level `bin` rule.
