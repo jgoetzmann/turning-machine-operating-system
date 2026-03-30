@@ -36,11 +36,36 @@ static void create_blank_disk(const char *path) {
     }
 }
 
+static void write_dir_entry(FILE *fp,
+                            unsigned int entry_idx,
+                            const char *name8,
+                            const char *ext3) {
+    uint8_t entry[32];
+    if (entry_idx >= 64u) {
+        fail("entry index out of range");
+    }
+    memset(entry, 0, sizeof(entry));
+    entry[0] = 0x00u;
+    memset(&entry[1], ' ', 8u);
+    memset(&entry[9], ' ', 3u);
+    memcpy(&entry[1], name8, strlen(name8));
+    memcpy(&entry[9], ext3, strlen(ext3));
+    if (fseek(fp, (long)(entry_idx * 32u), SEEK_SET) != 0) {
+        fail("cannot seek to directory entry");
+    }
+    if (fwrite(entry, 1u, sizeof(entry), fp) != sizeof(entry)) {
+        fail("cannot write directory entry");
+    }
+}
+
 int main(void) {
     uint8_t write_buf[BYTES_PER_SECTOR];
     uint8_t read_buf[BYTES_PER_SECTOR];
     FILE *bad_fp;
+    FILE *fp;
     const char *bad_path = "build/tests/fs/bad_disk.img";
+    int h1;
+    int h2;
     unsigned int i;
 
     create_blank_disk(TEST_DISK_PATH);
@@ -86,6 +111,38 @@ int main(void) {
     if (fs_init(bad_path) == 0) {
         fail("fs_init should reject bad geometry");
     }
+
+    /* Build a disk with active directory entries and verify fs_open. */
+    create_blank_disk(TEST_DISK_PATH);
+    fp = fopen(TEST_DISK_PATH, "r+b");
+    if (fp == NULL) {
+        fail("cannot open test disk for directory setup");
+    }
+    write_dir_entry(fp, 0u, "HELLO", "COM");
+    write_dir_entry(fp, 1u, "README", "TXT");
+    if (fclose(fp) != 0) {
+        fail("cannot close directory setup disk");
+    }
+    if (fs_init(TEST_DISK_PATH) != 0) {
+        fail("fs_init should succeed after directory setup");
+    }
+
+    h1 = fs_open("HELLO.COM");
+    if (h1 < 0 || h1 > 15) {
+        fail("fs_open should return valid handle for HELLO.COM");
+    }
+    h2 = fs_open("readme.txt");
+    if (h2 < 0 || h2 > 15) {
+        fail("fs_open should be case-insensitive through uppercase normalization");
+    }
+    if (fs_open("MISSING.BIN") != -1) {
+        fail("fs_open should fail for missing file");
+    }
+    if (fs_open("BAD-NAME.TXT") != -1) {
+        fail("fs_open should reject invalid CP/M-style name");
+    }
+    fs_close(h1);
+    fs_close(h2);
 
     (void)TOTAL_BYTES;
     puts("PASS: test_fs_sector");

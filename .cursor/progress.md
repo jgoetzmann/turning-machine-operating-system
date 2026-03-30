@@ -67,8 +67,8 @@
 ### Filesystem (`src/fs/fs.c`)
 - [x] P1-45 Implement `fs_init()` — open disk image, verify geometry
 - [x] P1-46 Implement internal `fs_read_sector(track, sector, buf)` and `fs_write_sector`
-- [ ] P1-47 Implement directory parsing — scan track 0 for active entries
-- [ ] P1-48 Implement `fs_open()` — find file by name, return handle
+- [x] P1-47 Implement directory parsing — scan track 0 for active entries
+- [x] P1-48 Implement `fs_open()` — find file by name, return handle
 - [ ] P1-49 Implement `fs_read()` — sequential sector read via allocation map
 - [ ] P1-50 Implement `fs_write()` — sequential sector write, allocate blocks
 - [ ] P1-51 Implement `fs_close()`, `fs_list()`, `fs_delete()`, `fs_exists()`

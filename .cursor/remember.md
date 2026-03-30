@@ -158,3 +158,7 @@ This keeps visualizer-facing output stable while dirty-map granularity remains t
 Implemented `fs_init()` to open a disk image in read/write mode, verify exact CP/M geometry size (`77 * 26 * 256 = 512512` bytes), and retain an internal file handle for sector operations.
 Implemented `fs_read_sector()` / `fs_write_sector()` with track/sector validation (track `0..76`, sector `1..26`), deterministic offset mapping, and 256-byte fixed sector transfers.
 Added `tests/fs/test_fs_sector.c` and integrated it into `tests/run_tests.sh` to verify valid init, read/write round-trip, out-of-range rejection, and geometry rejection for malformed disk files.
+## [2026-03-30] fs — Directory scan and fs_open handle allocation
+Added in-memory directory refresh logic that reads the first 2048 bytes (64 x 32-byte entries) and marks active records where status byte is `0x00`.
+Implemented `fs_open()` name matching against CP/M 8.3 directory entries by normalizing input names to uppercase, space-padded 11-byte form, then returning a handle from a 16-slot static open table.
+Extended `tests/fs/test_fs_sector.c` to create active directory entries on disk and verify `fs_open()` success for existing files, rejection for missing/invalid names, and handle-range behavior.
