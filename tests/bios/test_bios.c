@@ -1,4 +1,5 @@
 #include "../../src/bios/bios.h"
+#include "../../src/emu/mem.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -14,11 +15,17 @@ static void assert_u8(const char *label, unsigned int expected, unsigned int act
 int main(void) {
     cpu_t cpu = {0};
 
+    mem_init();
     bios_init();
     if (bios_pending_output()) {
         fprintf(stderr, "FAIL: queue should be empty after bios_init\n");
         return 1;
     }
+    assert_u8("default disk", 0u, bios_current_disk());
+    assert_u8("default track", 0u, bios_current_track());
+    assert_u8("default sector", 1u, bios_current_sector());
+    assert_u8("default dma high", 0x00u, (unsigned int)(bios_dma_addr() >> 8));
+    assert_u8("default dma low", 0x80u, (unsigned int)(bios_dma_addr() & 0xFFu));
 
     cpu.a = 0x02u; /* CONOUT */
     cpu.c = 'A';
@@ -52,6 +59,42 @@ int main(void) {
     cpu.a = 0x01u; /* CONIN */
     bios_dispatch(&cpu);
     assert_u8("CONIN stores char in A", 'Q', cpu.a);
+
+    /* Disk-parameter setup stubs should persist values. */
+    cpu.a = 0x09u; /* SELDISK */
+    cpu.c = 0x03u;
+    bios_dispatch(&cpu);
+    assert_u8("SELDISK value", 0x03u, bios_current_disk());
+
+    cpu.a = 0x0Au; /* SETTRK */
+    cpu.c = 0x11u;
+    bios_dispatch(&cpu);
+    assert_u8("SETTRK value", 0x11u, bios_current_track());
+
+    cpu.a = 0x0Bu; /* SETSEC */
+    cpu.c = 0x19u;
+    bios_dispatch(&cpu);
+    assert_u8("SETSEC value", 0x19u, bios_current_sector());
+
+    cpu.a = 0x0Cu; /* SETDMA */
+    cpu.d = 0x12u;
+    cpu.e = 0x34u;
+    bios_dispatch(&cpu);
+    assert_u8("SETDMA high", 0x12u, (unsigned int)(bios_dma_addr() >> 8));
+    assert_u8("SETDMA low", 0x34u, (unsigned int)(bios_dma_addr() & 0xFFu));
+
+    /* READ/WRITE delegate to FS hooks; current FS stubs report failure (A=1). */
+    cpu.a = 0x0Du; /* READ */
+    cpu.io_out_pending = 1u;
+    bios_dispatch(&cpu);
+    assert_u8("READ status", 1u, cpu.a);
+    assert_u8("READ clears pending", 0u, cpu.io_out_pending);
+
+    cpu.a = 0x0Eu; /* WRITE */
+    cpu.io_out_pending = 1u;
+    bios_dispatch(&cpu);
+    assert_u8("WRITE status", 1u, cpu.a);
+    assert_u8("WRITE clears pending", 0u, cpu.io_out_pending);
 
     puts("PASS: test_bios");
     return 0;

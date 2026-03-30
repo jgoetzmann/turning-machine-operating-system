@@ -48,3 +48,17 @@ int fs_exists(const char *name) {
 
 void fs_flush(void) {
 }
+
+int fs_read_sector(uint8_t track, uint8_t sector, uint8_t *buf) {
+    (void)track;
+    (void)sector;
+    (void)buf;
+    return -1;
+}
+
+int fs_write_sector(uint8_t track, uint8_t sector, const uint8_t *buf) {
+    (void)track;
+    (void)sector;
+    (void)buf;
+    return -1;
+}

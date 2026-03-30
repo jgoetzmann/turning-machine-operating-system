@@ -12,5 +12,7 @@ int fs_list(char names[][13], int max);
 int fs_delete(const char *name);
 int fs_exists(const char *name);
 void fs_flush(void);
+int fs_read_sector(uint8_t track, uint8_t sector, uint8_t *buf);
+int fs_write_sector(uint8_t track, uint8_t sector, const uint8_t *buf);
 
 #endif

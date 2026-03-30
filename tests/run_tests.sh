@@ -121,6 +121,7 @@ cc -std=c99 -Wall -Wextra -Werror -pedantic \
   ./src/bios/bios.c \
   ./src/emu/cpu.c \
   ./src/emu/mem.c \
+  ./src/fs/fs.c \
   -o "${BIOS_TEST_BIN}"
 
 "${BIOS_TEST_BIN}"
