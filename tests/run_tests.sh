@@ -10,6 +10,7 @@ CPU_BRANCH_BIN="${BUILD_DIR}/test_cpu_branch"
 CPU_STACK_BIN="${BUILD_DIR}/test_cpu_stack"
 CPU_IO_BIN="${BUILD_DIR}/test_cpu_io"
 CPU_CONTROL_BIN="${BUILD_DIR}/test_cpu_control"
+CPU_OPCODES_BIN="${BUILD_DIR}/test_opcodes"
 
 mkdir -p "${BUILD_DIR}"
 
@@ -83,5 +84,14 @@ cc -std=c99 -Wall -Wextra -Werror -pedantic \
   -o "${CPU_CONTROL_BIN}"
 
 "${CPU_CONTROL_BIN}"
+
+cc -std=c99 -Wall -Wextra -Werror -pedantic \
+  -I./src \
+  ./tests/emu/test_opcodes.c \
+  ./src/emu/cpu.c \
+  ./src/emu/mem.c \
+  -o "${CPU_OPCODES_BIN}"
+
+"${CPU_OPCODES_BIN}"
 
 echo "All tests passed."
