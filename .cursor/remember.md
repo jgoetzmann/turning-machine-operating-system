@@ -174,3 +174,6 @@ Extended `tests/fs/test_fs_sector.c` to verify list ordering/content, existence 
 ## [2026-03-30] fs — Dirty tracking and explicit flush semantics
 Introduced filesystem dirty-state tracking so write paths (`fs_write_sector` and directory-entry persistence) mark the backing disk as dirty instead of forcing immediate `fflush` on each update.
 Updated `fs_flush()` to flush only when dirty and clear the dirty flag on successful sync, aligning behavior with "write dirty sectors back" semantics while preserving existing correctness through explicit flush points and file close.
+## [2026-03-30] tests/fs — Covered create/readback and list/delete flows
+Confirmed `tests/fs/test_fs_sector.c` now explicitly covers both remaining Phase 1 filesystem test goals: (1) create/open-write-close-reopen-readback-compare (`DATA.BIN`) and (2) directory list/delete verification (`fs_list`, `fs_delete`, and `fs_exists` checks).
+No additional FS test binary was required because the existing FS test suite already executes these assertions under `make test`.

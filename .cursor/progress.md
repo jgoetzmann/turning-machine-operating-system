@@ -73,8 +73,8 @@
 - [x] P1-50 Implement `fs_write()` — sequential sector write, allocate blocks
 - [x] P1-51 Implement `fs_close()`, `fs_list()`, `fs_delete()`, `fs_exists()`
 - [x] P1-52 Implement `fs_flush()` — write all dirty sectors back to disk image
-- [ ] P1-53 Unit tests: create file, write data, close, reopen, read back, compare
-- [ ] P1-54 Unit tests: list directory, delete file, verify deleted
+- [x] P1-53 Unit tests: create file, write data, close, reopen, read back, compare
+- [x] P1-54 Unit tests: list directory, delete file, verify deleted
 
 ---
 
