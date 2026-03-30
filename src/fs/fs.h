@@ -5,6 +5,7 @@
 
 int fs_init(const char *disk_image_path);
 int fs_open(const char *name);
+int fs_create(const char *name);
 int fs_read(int fh, uint8_t *buf, int len);
 int fs_write(int fh, const uint8_t *buf, int len);
 void fs_close(int fh);

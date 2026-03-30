@@ -13,12 +13,11 @@ SRC := \
 	src/bios/bios.c \
 	src/kernel/kernel.c \
 	src/fs/fs.c \
-	src/shell/shell.c \
 	src/compiler/compiler.c
 
 OBJ := $(SRC:%.c=$(BUILD_DIR)/%.o)
 
-.PHONY: all run test disk shell clean viz agents
+.PHONY: all run test disk shell clean viz
 
 all: $(TARGET)
 
@@ -33,7 +32,7 @@ $(BUILD_DIR)/%.o: %.c
 run: all
 	"$(TARGET)"
 
-test: all
+test: all shell disk
 	./tests/run_tests.sh
 
 disk: $(BUILD_DIR)/mkdisk
@@ -50,7 +49,7 @@ $(BUILD_DIR)/cc_driver: tools/cc_driver.c src/compiler/compiler.c src/compiler/c
 
 shell: $(BUILD_DIR)/cc_driver
 	@mkdir -p "$(BIN_DIR)"
-	"$(BUILD_DIR)/cc_driver" src/shell/shell.c "$(BIN_DIR)/shell.com"
+	"$(BUILD_DIR)/cc_driver" src/shell/shell_tpa.c "$(BIN_DIR)/shell.com"
 	@echo "Generated $(BIN_DIR)/shell.com."
 
 clean:
@@ -58,6 +57,3 @@ clean:
 
 viz:
 	python3 viz/visualizer.py
-
-agents:
-	python3 tools/agent_supervisor.py

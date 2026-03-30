@@ -668,6 +668,8 @@ static int cg_tok_ok(const cc_codegen_t *cg, uint32_t tok_i) {
     return tok_i < (uint32_t)cg->token_count;
 }
 
+#define CC_CODE_BASE 0x0100u
+
 static int cg_emit_addr16(cc_out_t *o, uint16_t addr) {
     if (cg_emit1(o, (unsigned char)(addr & 0xFFu)) != 0) return -1;
     if (cg_emit1(o, (unsigned char)((addr >> 8) & 0xFFu)) != 0) return -1;
@@ -687,10 +689,58 @@ static int cg_emit_jump_placeholder(cc_codegen_t *cg, unsigned char opcode, int 
 }
 
 static int cg_patch_jump(cc_codegen_t *cg, int patch_at, int target) {
+    uint16_t abs_target;
     if (patch_at < 0 || patch_at + 1 >= cg->out->cap) return -1;
-    if (target < 0 || target > 0xFFFF) return -1;
-    cg->out->buf[patch_at] = (unsigned char)(target & 0xFF);
-    cg->out->buf[patch_at + 1] = (unsigned char)((target >> 8) & 0xFF);
+    if (target < 0 || (unsigned long)target + CC_CODE_BASE > 0xFFFFu) return -1;
+    abs_target = (uint16_t)((unsigned)target + CC_CODE_BASE);
+    cg->out->buf[patch_at] = (unsigned char)(abs_target & 0xFFu);
+    cg->out->buf[patch_at + 1] = (unsigned char)((abs_target >> 8) & 0xFFu);
+    return 0;
+}
+
+static int cg_emit_bios_conout_a(cc_codegen_t *cg) {
+    if (cg_emit1(cg->out, 0x4Fu) != 0) return -1; /* MOV C,A */
+    if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* MVI A,0x02 */
+    if (cg_emit1(cg->out, 0x02u) != 0) return -1;
+    if (cg_emit1(cg->out, 0xD3u) != 0) return -1; /* OUT 0x01 */
+    if (cg_emit1(cg->out, 0x01u) != 0) return -1;
+    if (cg_emit1(cg->out, 0x79u) != 0) return -1; /* MOV A,C */
+    return 0;
+}
+
+static int cg_emit_puts_string_literal(cc_codegen_t *cg, int lit_idx) {
+    const cc_ast_node_t *n;
+    const cc_token_t *t;
+    uint32_t i;
+    if (!cg_node_ok(cg, lit_idx)) return -1;
+    n = &cg->nodes[lit_idx];
+    if (n->kind != CC_AST_LITERAL || !cg_tok_ok(cg, n->token_index)) return -1;
+    t = &cg->tokens[n->token_index];
+    if (t->kind != CC_TOK_STRING || t->length < 2u) return -1;
+    i = t->offset + 1u;
+    while (i + 1u < t->offset + t->length) {
+        unsigned char ch = (unsigned char)cg->src[i];
+        if (ch == '\\' && i + 2u < t->offset + t->length) {
+            unsigned char esc = (unsigned char)cg->src[i + 1u];
+            if (esc == 'n') ch = '\n';
+            else if (esc == 'r') ch = '\r';
+            else if (esc == 't') ch = '\t';
+            else if (esc == '\\') ch = '\\';
+            else if (esc == '"') ch = '"';
+            else if (esc == '\'') ch = '\'';
+            i += 2u;
+        } else {
+            i += 1u;
+        }
+        if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* MVI A,ch */
+        if (cg_emit1(cg->out, ch) != 0) return -1;
+        if (cg_emit_bios_conout_a(cg) != 0) return -1;
+    }
+    if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* puts newline */
+    if (cg_emit1(cg->out, '\n') != 0) return -1;
+    if (cg_emit_bios_conout_a(cg) != 0) return -1;
+    if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* return 0 */
+    if (cg_emit1(cg->out, 0x00u) != 0) return -1;
     return 0;
 }
 
@@ -750,7 +800,8 @@ static int cg_add_local(cc_codegen_t *cg, const char *name, uint16_t *sp_offset_
     if (nlen == 0u || nlen > 15u) return -1;
     slot = cg->local_count++;
     memcpy(cg->locals[slot].name, name, nlen + 1u);
-    cg->locals[slot].sp_offset = (uint16_t)(cg->local_count - 1);
+    /* SP points at the low byte of the return address after CALL; locals sit above it. */
+    cg->locals[slot].sp_offset = (uint16_t)(slot + 2);
     *sp_offset_out = cg->locals[slot].sp_offset;
     return 0;
 }
@@ -852,6 +903,20 @@ static int cg_emit_store_ref(cc_codegen_t *cg, const cg_symbol_ref_t *ref) {
 
 static int cg_expr(cc_codegen_t *cg, int idx);
 
+static int cg_emit_boolify_a(cc_codegen_t *cg) {
+    int jz_patch = -1;
+    int end_pos;
+    if (cg_emit1(cg->out, 0xB7u) != 0) return -1; /* ORA A */
+    if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* MVI A,0 */
+    if (cg_emit1(cg->out, 0x00u) != 0) return -1;
+    if (cg_emit_jump_placeholder(cg, 0xCAu, &jz_patch) != 0) return -1; /* JZ end */
+    if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* MVI A,1 */
+    if (cg_emit1(cg->out, 0x01u) != 0) return -1;
+    end_pos = cg_pos(cg);
+    if (cg_patch_jump(cg, jz_patch, end_pos) != 0) return -1;
+    return 0;
+}
+
 static int cg_binop(cc_codegen_t *cg, int idx) {
     const cc_ast_node_t *n;
     if (!cg_node_ok(cg, idx)) return -1;
@@ -883,7 +948,7 @@ static int cg_binop(cc_codegen_t *cg, int idx) {
             if (cg_emit1(cg->out, 0x57u) != 0) return -1; /* MOV D,A */
             if (cg_emit1(cg->out, 0x0Du) != 0) return -1; /* DCR C */
             if (cg_emit1(cg->out, 0xC3u) != 0) return -1; /* JMP loop */
-            if (cg_emit_addr16(cg->out, (uint16_t)loop_pos) != 0) return -1;
+            if (cg_emit_addr16(cg->out, (uint16_t)((unsigned)loop_pos + CC_CODE_BASE)) != 0) return -1;
             if (cg_patch_jump(cg, jz_patch, cg_pos(cg)) != 0) return -1;
             if (cg_emit1(cg->out, 0x7Au) != 0) return -1; /* MOV A,D */
             return 0;
@@ -911,7 +976,7 @@ static int cg_binop(cc_codegen_t *cg, int idx) {
             if (cg_emit1(cg->out, 0x57u) != 0) return -1; /* MOV D,A */
             if (cg_emit1(cg->out, 0x04u) != 0) return -1; /* INR B */
             if (cg_emit1(cg->out, 0xC3u) != 0) return -1; /* JMP loop */
-            if (cg_emit_addr16(cg->out, (uint16_t)loop_pos) != 0) return -1;
+            if (cg_emit_addr16(cg->out, (uint16_t)((unsigned)loop_pos + CC_CODE_BASE)) != 0) return -1;
             quot_pos = cg_pos(cg);
             if (cg_emit1(cg->out, 0x78u) != 0) return -1; /* MOV A,B */
             if (cg_emit_jump_placeholder(cg, 0xC3u, &jmp_done_patch) != 0) return -1; /* JMP done */
@@ -981,6 +1046,22 @@ static int cg_binop(cc_codegen_t *cg, int idx) {
             }
             return 0;
         }
+        case CC_TOK_AND_AND: {
+            if (cg_emit_boolify_a(cg) != 0) return -1;
+            if (cg_emit1(cg->out, 0x4Fu) != 0) return -1; /* MOV C,A */
+            if (cg_emit1(cg->out, 0x78u) != 0) return -1; /* MOV A,B */
+            if (cg_emit_boolify_a(cg) != 0) return -1;
+            if (cg_emit1(cg->out, 0xA1u) != 0) return -1; /* ANA C */
+            return 0;
+        }
+        case CC_TOK_OR_OR: {
+            if (cg_emit_boolify_a(cg) != 0) return -1;
+            if (cg_emit1(cg->out, 0x4Fu) != 0) return -1; /* MOV C,A */
+            if (cg_emit1(cg->out, 0x78u) != 0) return -1; /* MOV A,B */
+            if (cg_emit_boolify_a(cg) != 0) return -1;
+            if (cg_emit1(cg->out, 0xB1u) != 0) return -1; /* ORA C */
+            return 0;
+        }
         default:
             return -1;
     }
@@ -1015,12 +1096,93 @@ static int cg_expr(cc_codegen_t *cg, int idx) {
             int arg = n->right;
             int call_patch;
             int fidx;
+            if (!cg_node_ok(cg, n->left) || cg->nodes[n->left].kind != CC_AST_IDENT) return -1;
+            if (cg_ident_name(cg, n->left, callee) != 0) return -1;
+            if (strcmp(callee, "getchar") == 0) {
+                if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* MVI A,0x01 */
+                if (cg_emit1(cg->out, 0x01u) != 0) return -1;
+                if (cg_emit1(cg->out, 0xD3u) != 0) return -1; /* OUT 0x01 */
+                if (cg_emit1(cg->out, 0x01u) != 0) return -1;
+                return 0;
+            }
+            if (strcmp(callee, "putchar") == 0) {
+                if (arg < 0) return -1;
+                if (cg_expr(cg, arg) != 0) return -1;
+                if (cg->nodes[arg].next >= 0) return -1;
+                return cg_emit_bios_conout_a(cg);
+            }
+            if (strcmp(callee, "puts") == 0) {
+                if (arg < 0) return -1;
+                if (cg->nodes[arg].next >= 0) return -1;
+                return cg_emit_puts_string_literal(cg, arg);
+            }
+            if (strcmp(callee, "listdir") == 0) {
+                if (arg >= 0) return -1;
+                if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* MVI A,0x0F */
+                if (cg_emit1(cg->out, 0x0Fu) != 0) return -1;
+                if (cg_emit1(cg->out, 0xD3u) != 0) return -1; /* OUT 0x01 */
+                if (cg_emit1(cg->out, 0x01u) != 0) return -1;
+                if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* MVI A,0 */
+                if (cg_emit1(cg->out, 0x00u) != 0) return -1;
+                return 0;
+            }
+            if (strcmp(callee, "namech") == 0) {
+                if (arg < 0) return -1;
+                if (cg_expr(cg, arg) != 0) return -1;
+                if (cg->nodes[arg].next >= 0) return -1;
+                if (cg_emit1(cg->out, 0x4Fu) != 0) return -1; /* MOV C,A */
+                if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* MVI A,0x12 */
+                if (cg_emit1(cg->out, 0x12u) != 0) return -1;
+                if (cg_emit1(cg->out, 0xD3u) != 0) return -1; /* OUT 0x01 */
+                if (cg_emit1(cg->out, 0x01u) != 0) return -1;
+                if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* MVI A,0 */
+                if (cg_emit1(cg->out, 0x00u) != 0) return -1;
+                return 0;
+            }
+            if (strcmp(callee, "namend") == 0) {
+                if (arg >= 0) return -1;
+                if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* MVI A,0x13 */
+                if (cg_emit1(cg->out, 0x13u) != 0) return -1;
+                if (cg_emit1(cg->out, 0xD3u) != 0) return -1; /* OUT 0x01 */
+                if (cg_emit1(cg->out, 0x01u) != 0) return -1;
+                if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* MVI A,0 */
+                if (cg_emit1(cg->out, 0x00u) != 0) return -1;
+                return 0;
+            }
+            if (strcmp(callee, "runend") == 0) {
+                if (arg >= 0) return -1;
+                if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* MVI A,0x14 */
+                if (cg_emit1(cg->out, 0x14u) != 0) return -1;
+                if (cg_emit1(cg->out, 0xD3u) != 0) return -1; /* OUT 0x01 */
+                if (cg_emit1(cg->out, 0x01u) != 0) return -1;
+                if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* MVI A,0 */
+                if (cg_emit1(cg->out, 0x00u) != 0) return -1;
+                return 0;
+            }
+            if (strcmp(callee, "delend") == 0) {
+                if (arg >= 0) return -1;
+                if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* MVI A,0x15 */
+                if (cg_emit1(cg->out, 0x15u) != 0) return -1;
+                if (cg_emit1(cg->out, 0xD3u) != 0) return -1; /* OUT 0x01 */
+                if (cg_emit1(cg->out, 0x01u) != 0) return -1;
+                if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* MVI A,0 */
+                if (cg_emit1(cg->out, 0x00u) != 0) return -1;
+                return 0;
+            }
+            if (strcmp(callee, "ccend") == 0) {
+                if (arg >= 0) return -1;
+                if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* MVI A,0x16 */
+                if (cg_emit1(cg->out, 0x16u) != 0) return -1;
+                if (cg_emit1(cg->out, 0xD3u) != 0) return -1; /* OUT 0x01 */
+                if (cg_emit1(cg->out, 0x01u) != 0) return -1;
+                if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* MVI A,0 */
+                if (cg_emit1(cg->out, 0x00u) != 0) return -1;
+                return 0;
+            }
             while (arg >= 0) {
                 if (cg_expr(cg, arg) != 0) return -1;
                 arg = cg->nodes[arg].next;
             }
-            if (!cg_node_ok(cg, n->left) || cg->nodes[n->left].kind != CC_AST_IDENT) return -1;
-            if (cg_ident_name(cg, n->left, callee) != 0) return -1;
             if (cg_emit_jump_placeholder(cg, 0xCDu, &call_patch) != 0) return -1; /* CALL */
             fidx = cg_find_function(cg, callee);
             if (fidx < 0) return -1;
@@ -1029,6 +1191,26 @@ static int cg_expr(cc_codegen_t *cg, int idx) {
             }
             return cg_add_pending_call(cg, callee, call_patch);
         }
+        case CC_AST_UNOP:
+            if (n->left < 0) return -1;
+            if (cg_expr(cg, n->left) != 0) return -1;
+            switch (n->op) {
+                case CC_TOK_PLUS:
+                    return 0;
+                case CC_TOK_MINUS:
+                    if (cg_emit1(cg->out, 0x4Fu) != 0) return -1; /* MOV C,A */
+                    if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* MVI A,0 */
+                    if (cg_emit1(cg->out, 0x00u) != 0) return -1;
+                    if (cg_emit1(cg->out, 0x91u) != 0) return -1; /* SUB C */
+                    return 0;
+                case CC_TOK_NOT:
+                    return cg_emit_boolify_a(cg) == 0 && cg_emit1(cg->out, 0xEEu) == 0 &&
+                                   cg_emit1(cg->out, 0x01u) == 0
+                               ? 0
+                               : -1; /* XRI 1 */
+                default:
+                    return -1;
+            }
         default:
             return -1;
     }
@@ -1089,7 +1271,7 @@ static int cg_stmt(cc_codegen_t *cg, int idx, int *saw_return) {
                 if (*saw_return) return 0;
             }
             if (cg_emit1(cg->out, 0xC3u) != 0) return -1; /* JMP loop */
-            if (cg_emit_addr16(cg->out, (uint16_t)loop_pos) != 0) return -1;
+            if (cg_emit_addr16(cg->out, (uint16_t)((unsigned)loop_pos + CC_CODE_BASE)) != 0) return -1;
             if (exit_patch >= 0 && cg_patch_jump(cg, exit_patch, cg_pos(cg)) != 0) return -1;
             return 0;
         }
@@ -1116,8 +1298,30 @@ static int cg_stmt(cc_codegen_t *cg, int idx, int *saw_return) {
                 if (cg_expr(cg, n->third) != 0) return -1;
             }
             if (cg_emit1(cg->out, 0xC3u) != 0) return -1; /* JMP loop */
-            if (cg_emit_addr16(cg->out, (uint16_t)loop_pos) != 0) return -1;
+            if (cg_emit_addr16(cg->out, (uint16_t)((unsigned)loop_pos + CC_CODE_BASE)) != 0) return -1;
             if (exit_patch >= 0 && cg_patch_jump(cg, exit_patch, cg_pos(cg)) != 0) return -1;
+            return 0;
+        }
+        case CC_AST_IF: {
+            int else_or_end_patch = -1;
+            int end_patch = -1;
+            int then_return = 0;
+            int else_return = 0;
+            int has_else = (n->third >= 0);
+            if (n->left < 0 || n->right < 0) return -1;
+            if (cg_jump_if_zero_expr(cg, n->left, &else_or_end_patch) != 0) return -1;
+            if (cg_stmt(cg, n->right, &then_return) != 0) return -1;
+            if (has_else) {
+                if (cg_emit_jump_placeholder(cg, 0xC3u, &end_patch) != 0) return -1; /* JMP end */
+            }
+            if (cg_patch_jump(cg, else_or_end_patch, cg_pos(cg)) != 0) return -1;
+            if (has_else) {
+                if (cg_stmt(cg, n->third, &else_return) != 0) return -1;
+                if (cg_patch_jump(cg, end_patch, cg_pos(cg)) != 0) return -1;
+                if (then_return && else_return) {
+                    *saw_return = 1;
+                }
+            }
             return 0;
         }
         case CC_AST_ASSIGN:
@@ -1222,10 +1426,10 @@ int cc_compile(const char *src_path, const char *out_path) {
     FILE *out;
     int ch;
     unsigned int checksum = 0u;
-    unsigned char blob[512];
-    cc_token_t toks[1024];
-    cc_ast_node_t nodes[2048];
-    char src_buf[4096];
+    unsigned char blob[16384];
+    cc_token_t toks[4096];
+    cc_ast_node_t nodes[8192];
+    char src_buf[16384];
     size_t nread;
     int tok_count;
     int node_count;
@@ -1273,6 +1477,10 @@ int cc_compile(const char *src_path, const char *out_path) {
         blob[4] = (unsigned char)((checksum >> 8) & 0xFFu);
         blob[5] = 0x76u;
         code_len = 6;
+    }
+    if (code_len <= 0 || code_len > (int)sizeof(blob)) {
+        fclose(out);
+        return -1;
     }
     if (fwrite(blob, 1u, (size_t)code_len, out) != (size_t)code_len) {
         fclose(out);

@@ -1,7 +1,9 @@
 #include "kernel.h"
 
 #include "../bios/bios.h"
+#include "../emu/cpu.h"
 #include "../emu/mem.h"
+#include "../fs/fs.h"
 
 #include <stddef.h>
 #include <stdio.h>
@@ -17,6 +19,7 @@
 #define KERNEL_META_SIZE 64u
 #define KERNEL_SHELL_LOAD_ADDR 0x0100u
 #define KERNEL_TPA_END 0x3FFFu
+#define KERNEL_DISK_PATH "build/disk/disk.img"
 
 static void kernel_drain_bios_output(void) {
     while (bios_pending_output()) {
@@ -126,6 +129,7 @@ void kernel_init(kernel_t *k) {
     cpu_init(&k->cpu);
     mem_init();
     bios_init();
+    (void)fs_init(KERNEL_DISK_PATH);
 }
 
 void kernel_run(kernel_t *k) {
@@ -179,6 +183,11 @@ void kernel_run(kernel_t *k) {
                     break;
                 }
                 if (cpu_halted(&k->cpu)) {
+                    cpu_reset(&k->cpu);
+                    if (kernel_load_shell_com() != 0) {
+                        mem_write(KERNEL_SHELL_LOAD_ADDR, 0x76u);
+                    }
+                    k->cpu.pc = KERNEL_SHELL_LOAD_ADDR;
                     k->state = KS_SHELL;
                 }
                 kernel_drain_bios_output();
@@ -186,6 +195,9 @@ void kernel_run(kernel_t *k) {
 
             case KS_SYSCALL:
                 bios_dispatch(&k->cpu);
+                if (bios_run_program_pending()) {
+                    resume_state = KS_RUNNING;
+                }
                 k->state = resume_state;
                 kernel_drain_bios_output();
                 break;

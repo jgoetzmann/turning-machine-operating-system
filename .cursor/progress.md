@@ -106,73 +106,75 @@
 - [x] P3-02 Define token types and AST node types in `compiler.h`
 - [x] P3-03 Implement parser — recursive descent, produce AST
 - [x] P3-04 Implement AST for: variable decl, assignment, arithmetic expr, if/else, while, for, function decl/call, return
-- [~] P3-05 Implement code generator — walk AST, emit 8080 instructions
+- [x] P3-05 Implement code generator — walk AST, emit 8080 instructions
 - [x] P3-06 Code gen: global variables (at fixed addresses above TPA entry)
 - [x] P3-07 Code gen: local variables (on 8080 stack)
 - [x] P3-08 Code gen: arithmetic (+, -, *, /)
 - [x] P3-09 Code gen: comparisons and conditional jumps
 - [x] P3-10 Code gen: while loop, for loop
 - [x] P3-11 Code gen: function call and return
-- [ ] P3-12 Code gen: `putchar()`, `getchar()`, `puts()` as BIOS wrappers
-- [ ] P3-13 Emit flat binary `.com` output
-- [ ] P3-14 Compiler unit tests: compile each test program, verify binary runs in emulator and produces expected output
-- [ ] P3-15 Add parser unit tests for valid/invalid C-subset constructs and AST node coverage
-- [ ] P3-16 Expand codegen coverage beyond `return` expression subset (vars, control flow, calls)
+- [x] P3-12 Code gen: `putchar()`, `getchar()`, `puts()` as BIOS wrappers
+- [x] P3-13 Emit flat binary `.com` output
+- [x] P3-14 Compiler unit tests: compile each test program, verify binary runs in emulator and produces expected output
+- [x] P3-15 Add parser unit tests for valid/invalid C-subset constructs and AST node coverage
+- [x] P3-16 Expand codegen coverage beyond `return` expression subset (vars, control flow, calls)
 
 ---
 
 ## PHASE 4 — Visualization
 
 ### Tape Bridge
-- [ ] P4-01 Implement `tape_bridge.py` — mmap `/tmp/turingos_tape.bin` (64KB)
-- [ ] P4-02 Read `/tmp/turingos_meta.bin` — parse state, steps, dirty map, PC
-- [ ] P4-03 Expose `get_tape()`, `get_meta()`, `get_pc()`, `get_state()` functions
-- [ ] P4-04 Handle missing files gracefully (return None, don't crash)
+- [x] P4-01 Implement `tape_bridge.py` — mmap `/tmp/turingos_tape.bin` (64KB)
+- [x] P4-02 Read `/tmp/turingos_meta.bin` — parse state, steps, dirty map, PC
+- [x] P4-03 Expose `get_tape()`, `get_meta()`, `get_pc()`, `get_state()` functions
+- [x] P4-04 Handle missing files gracefully (return None, don't crash)
 
 ### Pygame Visualizer
-- [ ] P4-05 Set up pygame window 1280×800, title bar, black background
-- [ ] P4-06 Implement tape map panel: 256×256 grid of 4×3 pixel cells
-- [ ] P4-07 Color-code cells by memory region (see spec §4.8 color table)
-- [ ] P4-08 Highlight current PC cell (blinking yellow)
-- [ ] P4-09 Flash recently-written (dirty) cells bright then decay
-- [ ] P4-10 Implement detail panel: hex+ASCII dump of 256-byte page at clicked address
-- [ ] P4-11 Implement legend bar at bottom
-- [ ] P4-12 Implement status bar: current state name, step count
-- [ ] P4-13 Keyboard: R=reset, P=pause, S=snapshot
-- [ ] P4-14 Click handling: click tape map → update detail panel
-- [ ] P4-15 Waiting-for-tape splash screen when files absent
-- [ ] P4-16 FPS cap at 10
-- [ ] P4-17 `make viz` launches `python3 viz/visualizer.py`
+- [x] P4-05 Set up pygame window 1280×800, title bar, black background
+- [x] P4-06 Implement tape map panel: 256×256 grid of 4×3 pixel cells
+- [x] P4-07 Color-code cells by memory region (see spec §4.8 color table)
+- [x] P4-08 Highlight current PC cell (blinking yellow)
+- [x] P4-09 Flash recently-written (dirty) cells bright then decay
+- [x] P4-10 Implement detail panel: hex+ASCII dump of 256-byte page at clicked address
+- [x] P4-11 Implement legend bar at bottom
+- [x] P4-12 Implement status bar: current state name, step count
+- [x] P4-13 Keyboard: R=reset, P=pause, S=snapshot
+- [x] P4-14 Click handling: click tape map → update detail panel
+- [x] P4-15 Waiting-for-tape splash screen when files absent
+- [x] P4-16 FPS cap at 10
+- [x] P4-17 `make viz` launches `python3 viz/visualizer.py`
 
 ---
 
 ## PHASE 5 — Tests
 
 ### Test Framework
-- [ ] P5-01 Write `tests/testfw.h` — `ASSERT`, `TEST`, `RUN_ALL_TESTS` macros
+- [x] P5-01 Write `tests/testfw.h` — `ASSERT`, `TEST`, `RUN_ALL_TESTS` macros
 
 ### Emulator Tests
-- [ ] P5-02 `tests/emu/test_opcodes.c` — test all opcode groups
-- [ ] P5-03 `tests/emu/test_flags.c` — test flag computation edge cases
-- [ ] P5-04 `tests/emu/test_mem.c` — test memory boundary conditions
+- [x] P5-02 `tests/emu/test_opcodes.c` — test all opcode groups
+- [x] P5-03 `tests/emu/test_flags.c` — test flag computation edge cases
+- [x] P5-04 `tests/emu/test_mem.c` — test memory boundary conditions
 
 ### BIOS + FS Tests
-- [ ] P5-05 `tests/bios/test_conout.c` — ring buffer tests
-- [ ] P5-06 `tests/fs/test_fs.c` — create/read/write/delete file tests
+- [x] P5-05 `tests/bios/test_conout.c` — ring buffer tests
+- [x] P5-06 `tests/fs/test_fs.c` — create/read/write/delete file tests
 
 ### Compiler Tests
-- [ ] P5-07 `tests/compiler/test_cc.c` — compile each test program, verify binary is non-empty
-- [ ] P5-08 Emulator-run compiler output for each of 5 test programs, compare stdout to `.expected`
+- [x] P5-07 `tests/compiler/test_cc.c` — compile each test program, verify binary is non-empty
+- [x] P5-08 Emulator-run compiler output for each of 5 test programs, compare stdout to `.expected`
 
 ### Integration Tests
-- [ ] P5-09 `tests/integration/test_boot.sh` — boot + prompt appears
-- [ ] P5-10 `tests/integration/test_add.sh` — compile and run `add.c`, check output = `3 + 4 = 7`
-- [ ] P5-11 `tests/integration/test_strcat.sh` — compile and run `strcat.c`, check `helloworld`
-- [ ] P5-12 `tests/integration/test_count.sh` — compile and run `count.c`, check 1–10
-- [ ] P5-13 `tests/integration/test_echo.sh` — compile and run `echo.c` with input, check round-trip
-- [ ] P5-14 `tests/integration/test_memtest.sh` — compile and run `memtest.c`, check `sum=55`
-- [ ] P5-15 `tests/run_tests.sh` — runs all above, reports pass/fail count, exits 0 on all pass
-- [ ] P5-16 `make test` calls `run_tests.sh` and forwards exit code
+- [x] P5-09 `tests/integration/test_boot.sh` — boot + prompt appears
+- [x] P5-10 `tests/integration/test_add.sh` — compile and run `add.c`, check output = `3 + 4 = 7`
+- [x] P5-11 `tests/integration/test_strcat.sh` — compile and run `strcat.c`, check `helloworld`
+- [x] P5-12 `tests/integration/test_count.sh` — compile and run `count.c`, check 1–10
+- [x] P5-13 `tests/integration/test_echo.sh` — compile and run `echo.c` with input, check round-trip
+- [x] P5-14 `tests/integration/test_memtest.sh` — compile and run `memtest.c`, check `sum=55`
+- [x] P5-15 `tests/run_tests.sh` — runs all above, reports pass/fail count, exits 0 on all pass
+- [x] P5-16 `make test` calls `run_tests.sh` and forwards exit code
+- [x] P5-17 `tests/integration/test_run.sh`, `test_del.sh` — `run` / `del` on missing file prints `?`
+- [x] P5-18 `tests/integration/test_cc.sh` — `cc` on missing `.c` prints `?`
 
 ---
 

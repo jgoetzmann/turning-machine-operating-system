@@ -233,3 +233,103 @@ Implemented statement-level loop lowering for `CC_AST_WHILE` and `CC_AST_FOR` in
 ## [2026-03-30] compiler/codegen — Multi-function CALL/RET emission pipeline
 Refactored codegen to emit a true function table: collect top-level function declarations, emit a small entry stub (`LXI SP`, `CALL main`, `HLT`), then emit each function body with `RET`-based returns and default epilogues when no explicit return appears.
 Added `CC_AST_CALL` expression lowering with address patching for forward calls: unresolved call sites are recorded and patched after all function addresses are known. `CC_AST_RETURN` now emits `RET` instead of `HLT`, enabling nested function calls while preserving program termination via entry-stub `HLT` after `main` returns.
+## [2026-03-30] compiler/codegen — BIOS I/O wrappers for putchar/getchar/puts
+Added built-in call lowering for `getchar()`, `putchar(x)`, and `puts("...")` directly in `CC_AST_CALL` codegen using BIOS trigger convention (`MVI A,<fn>; OUT 0x01`). `putchar` now evaluates its argument, routes it via register `C` to BIOS CONOUT (`0x02`), and preserves the character in `A` as return value; `getchar` invokes BIOS CONIN (`0x01`) and leaves result in `A`.
+Implemented literal-string emission for `puts` by decoding the string token payload (basic escapes handled: `\\n`, `\\r`, `\\t`, `\\\\`, `\\\"`, `\\'`) and issuing repeated CONOUT calls followed by newline output, with `A=0` return. Non-literal or malformed `puts` forms currently fail codegen and fall back to the deterministic compile stub path.
+## [2026-03-30] compiler/tests — Flat `.com` guardrails and parser coverage
+Hardened `cc_compile()` output constraints by expanding the internal emission buffer and explicitly rejecting invalid code lengths (`<=0` or beyond buffer bounds) before writing output, preserving strict flat-binary `.com` semantics (raw emitted bytes only, no headers).
+Added `tests/compiler/test_parser.c` and wired it into `tests/run_tests.sh` to validate parser acceptance/rejection across representative valid and invalid subset-C programs (declarations, assignment, arithmetic precedence, calls, `if`, `while`, and `for` forms). `make test` now includes parser regression coverage via `PASS: test_parser`.
+## [2026-03-30] compiler/tests — Runtime codegen execution harness
+Added `tests/compiler/test_codegen_runtime.c` and integrated it into `tests/run_tests.sh` as `PASS: test_codegen_runtime`.
+The new harness writes small C programs to `build/tests/compiler/cases`, compiles each with `cc_compile`, loads the produced binary into emulator memory, executes CPU steps while dispatching BIOS `OUT 0x01` calls, captures BIOS output, and asserts expected results (return value in register `A` and/or stdout text).
+Current runtime coverage validates arithmetic return values, while-loop lowering, function call/return, multiplication/division lowering, and BIOS string output via `puts`, providing end-to-end compiler-to-emulator verification for the implemented subset.
+## [2026-03-30] compiler/codegen — Added if/else, unary, and logical lowering
+Extended codegen statement handling with `CC_AST_IF` lowering (condition branch to else/end, optional else block, and conservative return-propagation only when both branches return).
+Extended expression lowering with `CC_AST_UNOP` support for unary `+`, unary `-`, and logical `!` (boolean normalization + invert), and `CC_TOK_AND_AND` / `CC_TOK_OR_OR` lowering for boolean logical ops.
+Expanded runtime compiler tests in `tests/compiler/test_codegen_runtime.c` to cover `if/else`, logical operators, and unary operators in addition to the prior arithmetic/loop/call/BIOS coverage; full `make test` remains green.
+## [2026-03-30] viz/tape_bridge — Added tape mmap reader foundation
+Created `viz/tape_bridge.py` with a read-only mmap bridge for `/tmp/turingos_tape.bin` at fixed `64KB` size.
+Implemented lazy-open + handle reuse (`get_tape_map()`), snapshot reads (`get_tape()`), and explicit teardown (`close()`), with graceful `None` returns when the tape file is absent or undersized.
+Path resolution uses `os.path.realpath('/tmp/...')` to avoid macOS `/tmp` vs `/private/tmp` mismatches documented in project pitfalls.
+## [2026-03-30] viz/tape_bridge — Added metadata mmap parsing
+Extended `viz/tape_bridge.py` with a second read-only mmap for `/tmp/turingos_meta.bin` (`64` bytes) and lazy-open access via `get_meta_map()`.
+Added `get_meta()` parsing to extract state (`raw[0]`), step count (`raw[1..4]` little-endian), dirty map bytes (`raw[5..36]`), and program counter (`raw[37..38]` high/low).
+The bridge now exposes parsed kernel metadata in a visualizer-friendly dictionary while preserving graceful `None` behavior if the meta file is missing or too small.
+## [2026-03-30] viz/tape_bridge — Added explicit PC/state accessors
+Added `get_pc()` and `get_state()` helpers on top of `get_meta()` so visualizer code can read high-frequency fields directly without duplicating parsing logic.
+Both helpers preserve graceful behavior by returning `None` when metadata is unavailable, matching the bridge contract used by `get_tape()`/`get_meta()`.
+## [2026-03-30] viz/tape_bridge — Hardened graceful failure paths
+Updated tape/meta mmap open paths to catch filesystem access errors (`exists/getsize/open`) and mmap setup failures, returning `None` instead of raising.
+Added read-time guards in `get_tape()` and `get_meta()` so seek/read failures on stale or invalid maps trigger handle reset and graceful `None` returns.
+This completes the bridge-side "missing/inaccessible files should not crash visualizer" requirement while keeping the API stable.
+## [2026-03-30] viz/visualizer — Pygame window bootstrap
+Replaced the visualizer stub with a minimal pygame app shell: initializes pygame, opens a `1280x800` window, sets the title to `TuringOS Tape Visualizer`, clears to black each frame, and exits cleanly on window close.
+Added a small import guard that prints a clear message and exits non-zero if `pygame` is missing, keeping local failure behavior explicit while preserving Docker/venv workflows.
+## [2026-03-30] viz/visualizer — Added tape map grid renderer
+Implemented the first map panel pass in `viz/visualizer.py`: draws a full `256x256` tape grid using `4x3` pixel cells (`1024x768` area) with top-left offset, and updates it each frame from `tape_bridge.get_tape()`.
+Added a safe fallback to an all-zero tape when bridge data is unavailable so visualizer remains runnable before kernel snapshots exist.
+Current cell coloring is temporary byte-intensity green; region-aware palette/highlights are deferred to subsequent visualizer tasks.
+## [2026-03-30] viz/visualizer — Region-based tape color mapping
+Replaced temporary byte-intensity coloring with memory-region colors aligned to spec ranges: BIOS, TPA, kernel heap, shell workspace, FS cache, stack, I/O ports, and TM metadata.
+The tape map renderer now picks color from cell address range (`_region_color(addr)`) so the memory layout is visually stable and immediately readable independent of byte contents.
+## [2026-03-30] viz/visualizer — Added blinking PC highlight
+Extended tape map rendering to overlay the current program-counter cell in bright yellow, sourcing PC from `tape_bridge.get_pc()`.
+Implemented a simple blink phase using pygame tick time (`500ms` cadence), so the PC marker alternates visible/hidden while preserving the underlying region color when off-phase.
+## [2026-03-30] viz/visualizer — Dirty-page flash with decay
+Added dirty-map driven flash logic using metadata `dirty_map` bytes (`32` bytes => `256` page bits). Newly dirty pages are set to a short flash timer and then decay toward base region color over time.
+Implemented per-page decay tracking and color blending (`DIRTY_FLASH_COLOR` over region color), so all cells within a dirty 256-byte page briefly brighten and smoothly fade.
+Current kernel dirty map is still mostly placeholder-zero, but the visualizer path is now wired for real dirty activity without further structural changes.
+## [2026-03-30] viz/visualizer — Added page detail panel (hex + ASCII)
+Implemented a right-side detail panel that renders the selected 256-byte page as 16 rows of `16` bytes with both hex and ASCII columns.
+Current page selection defaults to the current PC page (`pc >> 8`), so the detail view follows execution even before click-selection (`P4-14`) is added.
+Panel rendering includes header address range and non-printable-byte substitution to `.` for stable ASCII output.
+## [2026-03-30] viz/visualizer — Added bottom legend bar
+Implemented a bottom legend panel with color swatches and labels for all current map regions (`BIOS`, `TPA`, `KERNEL`, `SHELL`, `FS CACHE`, `STACK`, `I/O`, `TM META`) plus `PC` marker color.
+Added a live head readout (`HEAD=0x....`) on the legend bar to make PC location explicit even when zoomed or blinking overlay is off-phase.
+## [2026-03-30] viz/visualizer — Added top status bar
+Added a status text line at the top showing current kernel state name and step count from bridge metadata (`state`, `steps`).
+Included state-name mapping (`BOOT`, `IDLE`, `SHELL`, `RUNNING`, `SYSCALL`, `HALT`) with an `UNKNOWN(n)` fallback for robustness against unexpected values.
+## [2026-03-30] viz/visualizer — Keyboard controls for reset/pause/snapshot
+Added key handlers: `P` toggles pause (freezes bridge polling while keeping render alive), `R` closes bridge mappings so the next frame reopens snapshots, and `S` writes a tape snapshot file (`snapshot_XXXX.bin`) in the current working directory.
+Snapshot naming is monotonic-first-available (`snapshot_0000.bin`, `snapshot_0001.bin`, ...), and snapshot payload is always the currently displayed 64KB tape buffer.
+## [2026-03-30] viz/visualizer — Click-to-select detail page
+Added left-click handling on the tape map area to select a 256-byte page for the detail panel using map-coordinate-to-page conversion.
+When a page is selected, detail view remains locked to that page; otherwise it follows the PC page. `R` reset now also clears manual selection back to PC-follow mode.
+## [2026-03-30] viz/visualizer — Waiting splash when tape unavailable
+Added a dedicated splash render path that shows `WAITING FOR TAPE...` when no valid 64KB tape snapshot is available from the bridge.
+While waiting, the visualizer polls bridge data on a lightweight interval (`~1000ms`) instead of pulling snapshots every frame, then resumes full panel rendering once tape data appears.
+## [2026-03-30] viz/visualizer — Finalized frame pacing and launch path
+Set visualizer frame pacing to retro target `10 FPS` via `clock.tick(TARGET_FPS)` with `TARGET_FPS=10`.
+Confirmed existing `make viz` target already launches `python3 viz/visualizer.py`, so no Makefile changes were required to satisfy the launch requirement.
+## [2026-03-30] tests — Added shared test framework header
+Created `tests/testfw.h` providing shared `ASSERT`, `TEST`, and `RUN_ALL_TESTS` macros for the hand-rolled C test harness style.
+Migrated `tests/emu/test_mem.c` to consume the framework macros (single test function + `TEST(...)` invocation) so the header is actively exercised in the default `make test` flow.
+## [2026-03-30] tests/emu — Aligned emulator test paths with Phase 5 checklist
+Added `tests/emu/test_flags.c` (flag edge-case coverage for ADD/SUB/AND/OR/XOR boundaries) and updated `tests/run_tests.sh` to build/run it as `test_flags`.
+Existing `tests/emu/test_opcodes.c` and `tests/emu/test_mem.c` remain in the default runner, so the Phase 5 emulator test trio now matches both file paths and execution wiring in the tracker.
+## [2026-03-30] tests/bios+fs — Aligned file paths to checklist names
+Added `tests/bios/test_conout.c` and `tests/fs/test_fs.c` (path-aligned variants of existing BIOS ring-buffer and filesystem create/read/write/delete coverage) and wired `tests/run_tests.sh` to compile/run these exact file names.
+`make test` now reports `PASS: test_conout` and `PASS: test_fs`, matching Phase 5 tracker wording while preserving existing behavior and coverage scope.
+## [2026-03-30] tests/compiler — Added non-empty output compile test
+Added `tests/compiler/test_cc.c` to compile a representative set of small C programs via `cc_compile` and assert each generated `.com` output file exists with non-zero size.
+Wired the new test into `tests/run_tests.sh` as `PASS: test_cc`, giving explicit coverage for the checklist requirement that compile outputs are non-empty.
+## [2026-03-30] tests/compiler — Added `.expected`-based emulator output checks
+Added five checked-in compiler fixtures under `tests/compiler/programs/` (`add`, `strcat`, `count`, `memtest`, `logic`) with paired `.c` and `.expected` files.
+Added `tests/compiler/test_expected_outputs.c` to compile each fixture, run the emitted binary on the emulator with BIOS output capture, and compare stdout against the corresponding `.expected` file.
+Integrated the new harness into `tests/run_tests.sh` as `PASS: test_expected_outputs`.
+## [2026-03-30] tests/integration — Added checklist integration scripts and case filtering
+Extended `tests/compiler/test_expected_outputs.c` with optional `CC_CASE=<name>` filtering and added `echo` fixture/input support (`echo.c`, `echo.expected`, staged stdin `"hello\n"`).
+Added integration scripts `tests/integration/test_add.sh`, `test_strcat.sh`, `test_count.sh`, `test_echo.sh`, and `test_memtest.sh`; each invokes the expected-output harness for one named case and reports a dedicated PASS line.
+Updated `tests/run_tests.sh` to execute the expanded integration script set after compiler test binaries, so `make test` now reports all Phase 5 integration checklist items in one pass.
+## [2026-03-30] Makefile — Removed broken `agents` target
+`tools/agent_supervisor.py` is no longer in the repo; removed the `agents` Makefile target and its `.PHONY` entry so there is no recipe that fails at runtime.
+## [2026-03-30] Shell + compiler — TPA shell, code relocation, locals fix
+Replaced the non-compilable host `shell.c` with `src/shell/shell_tpa.c` (tiny C only: `A> ` prompt, `halt` via `puts("HALT")` + return, `?` for unknown lines), `make shell` wired to it, and dropped `shell.c` from the host `turingos` link (it was unused and pulled host filesystem APIs).
+Codegen now emits **absolute** addresses in the TPA (`0x0100 +` file offset) for `CALL`/`JMP`/`JZ` patches and loop back-edges; emulator tests load `.com` at `0x0100` with `PC=0x0100` to match.
+Fixed **local stack slots**: first local was at SP offset `0` and overwrote the `CALL` return address; locals now start at offset `2` above SP.
+`make test` depends on `make shell`; `test_boot.sh` / `test_halt.sh` use `</dev/null` so they never block on `getchar` when stdin is a TTY.
+## [2026-03-30] BIOS 0x0F listdir + shell `dir` + fs at boot
+Added BIOS syscall `A=0x0F` (`OUT` port 1) that calls `fs_list` and queues each filename with newlines, or `(empty)\n` when there are no files, or `?\n` when the filesystem is unavailable.
+Kernel `kernel_init` now calls `fs_init("build/disk/disk.img")` (ignored on failure). Tiny C gained a `listdir()` intrinsic (same OUT pattern as `getchar`). `shell_tpa.c` recognizes `dir` (d,i,r + newline) and calls `listdir()`. `make test` depends on `make disk` so integration can assert `(empty)` on a fresh image; added `tests/integration/test_dir.sh` piping `dir\n` into `turingos`.
+## [2026-03-30] Shell help/mem/cls + larger cc_compile buffer
+TPA shell now implements `cls` (ESC [2J ESC [H via putchar), `help` (one-line command list), and `mem` (single `puts` with embedded newlines for the tape map). `halt` vs `help` split on the second letter (`ha…` vs `he…`). `cc_compile` raised limits (`src_buf` 16KiB, 4K tokens, 8K AST nodes) so large sources like `shell_tpa.c` are not truncated. Added `tests/integration/test_help.sh` and `test_mem.sh`.

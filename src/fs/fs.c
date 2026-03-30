@@ -267,6 +267,58 @@ int fs_open(const char *name) {
     return -1;
 }
 
+int fs_create(const char *name) {
+    uint8_t wanted[11];
+    unsigned int h;
+    int dir_index;
+    int free_slot;
+    uint8_t *entry;
+
+    if (g_disk_fp == NULL) {
+        return -1;
+    }
+    if (fs_build_cpm_name(name, wanted) != 0) {
+        return -1;
+    }
+    if (fs_refresh_directory() != 0) {
+        return -1;
+    }
+    if (fs_find_dir_index_by_cpm_name(wanted) >= 0) {
+        return -1;
+    }
+
+    free_slot = -1;
+    for (dir_index = 0; dir_index < (int)FS_DIR_ENTRIES; ++dir_index) {
+        if (g_dir_active[(unsigned int)dir_index] == 0u) {
+            free_slot = dir_index;
+            break;
+        }
+    }
+    if (free_slot < 0) {
+        return -1;
+    }
+
+    entry = &g_dir_raw[(unsigned int)free_slot * FS_DIR_ENTRY_SIZE];
+    (void)memset(entry, 0, FS_DIR_ENTRY_SIZE);
+    entry[0] = 0x00u;
+    (void)memcpy(&entry[1], wanted, 11u);
+    entry[15] = 0u;
+    if (fs_persist_directory_entry((uint8_t)free_slot) != 0) {
+        return -1;
+    }
+    g_dir_active[(unsigned int)free_slot] = 1u;
+
+    for (h = 0u; h < FS_OPEN_MAX; ++h) {
+        if (g_open_in_use[h] == 0u) {
+            g_open_in_use[h] = 1u;
+            g_open_dir_index[h] = (uint8_t)free_slot;
+            g_open_pos[h] = 0u;
+            return (int)h;
+        }
+    }
+    return -1;
+}
+
 int fs_read(int fh, uint8_t *buf, int len) {
     uint8_t *entry;
     uint16_t pos;

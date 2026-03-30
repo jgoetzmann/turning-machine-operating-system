@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-OUT="$(./build/turingos)"
+OUT="$(./build/turingos </dev/null)"
 
 case "$OUT" in
   *"state=5"*) ;;

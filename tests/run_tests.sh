@@ -3,6 +3,7 @@ set -eu
 
 BUILD_DIR="build/tests/emu"
 FS_BUILD_DIR="build/tests/fs"
+COMPILER_BUILD_DIR="build/tests/compiler"
 TEST_BIN="${BUILD_DIR}/test_mem"
 CPU_TEST_BIN="${BUILD_DIR}/test_cpu_data_transfer"
 CPU_ARITH_BIN="${BUILD_DIR}/test_cpu_arithmetic"
@@ -13,12 +14,17 @@ CPU_IO_BIN="${BUILD_DIR}/test_cpu_io"
 CPU_CONTROL_BIN="${BUILD_DIR}/test_cpu_control"
 CPU_OPCODES_BIN="${BUILD_DIR}/test_opcodes"
 CPU_HLT_BIN="${BUILD_DIR}/test_cpu_hlt"
-CPU_FLAGS_BIN="${BUILD_DIR}/test_cpu_flags"
-BIOS_TEST_BIN="${BUILD_DIR}/test_bios"
-FS_SECTOR_TEST_BIN="${FS_BUILD_DIR}/test_fs_sector"
+CPU_FLAGS_BIN="${BUILD_DIR}/test_flags"
+BIOS_TEST_BIN="${BUILD_DIR}/test_conout"
+FS_SECTOR_TEST_BIN="${FS_BUILD_DIR}/test_fs"
+COMPILER_PARSER_TEST_BIN="${COMPILER_BUILD_DIR}/test_parser"
+COMPILER_CC_TEST_BIN="${COMPILER_BUILD_DIR}/test_cc"
+COMPILER_CODEGEN_RUNTIME_TEST_BIN="${COMPILER_BUILD_DIR}/test_codegen_runtime"
+COMPILER_EXPECTED_OUTPUTS_TEST_BIN="${COMPILER_BUILD_DIR}/test_expected_outputs"
 
 mkdir -p "${BUILD_DIR}"
 mkdir -p "${FS_BUILD_DIR}"
+mkdir -p "${COMPILER_BUILD_DIR}"
 
 cc -std=c99 -Wall -Wextra -Werror -pedantic \
   -I./src \
@@ -111,7 +117,7 @@ cc -std=c99 -Wall -Wextra -Werror -pedantic \
 
 cc -std=c99 -Wall -Wextra -Werror -pedantic \
   -I./src \
-  ./tests/emu/test_cpu_flags.c \
+  ./tests/emu/test_flags.c \
   ./src/emu/cpu.c \
   ./src/emu/mem.c \
   -o "${CPU_FLAGS_BIN}"
@@ -120,8 +126,9 @@ cc -std=c99 -Wall -Wextra -Werror -pedantic \
 
 cc -std=c99 -Wall -Wextra -Werror -pedantic \
   -I./src \
-  ./tests/bios/test_bios.c \
+  ./tests/bios/test_conout.c \
   ./src/bios/bios.c \
+  ./src/compiler/compiler.c \
   ./src/emu/cpu.c \
   ./src/emu/mem.c \
   ./src/fs/fs.c \
@@ -131,13 +138,65 @@ cc -std=c99 -Wall -Wextra -Werror -pedantic \
 
 cc -std=c99 -Wall -Wextra -Werror -pedantic \
   -I./src \
-  ./tests/fs/test_fs_sector.c \
+  ./tests/fs/test_fs.c \
   ./src/fs/fs.c \
   -o "${FS_SECTOR_TEST_BIN}"
 
 "${FS_SECTOR_TEST_BIN}"
 
+cc -std=c99 -Wall -Wextra -Werror -pedantic \
+  -I./src \
+  ./tests/compiler/test_parser.c \
+  ./src/compiler/compiler.c \
+  -o "${COMPILER_PARSER_TEST_BIN}"
+
+"${COMPILER_PARSER_TEST_BIN}"
+
+cc -std=c99 -Wall -Wextra -Werror -pedantic \
+  -I./src \
+  ./tests/compiler/test_cc.c \
+  ./src/compiler/compiler.c \
+  -o "${COMPILER_CC_TEST_BIN}"
+
+"${COMPILER_CC_TEST_BIN}"
+
+cc -std=c99 -Wall -Wextra -Werror -pedantic \
+  -I./src \
+  ./tests/compiler/test_codegen_runtime.c \
+  ./src/compiler/compiler.c \
+  ./src/emu/cpu.c \
+  ./src/emu/mem.c \
+  ./src/bios/bios.c \
+  ./src/fs/fs.c \
+  -o "${COMPILER_CODEGEN_RUNTIME_TEST_BIN}"
+
+"${COMPILER_CODEGEN_RUNTIME_TEST_BIN}"
+
+cc -std=c99 -Wall -Wextra -Werror -pedantic \
+  -I./src \
+  ./tests/compiler/test_expected_outputs.c \
+  ./src/compiler/compiler.c \
+  ./src/emu/cpu.c \
+  ./src/emu/mem.c \
+  ./src/bios/bios.c \
+  ./src/fs/fs.c \
+  -o "${COMPILER_EXPECTED_OUTPUTS_TEST_BIN}"
+
+"${COMPILER_EXPECTED_OUTPUTS_TEST_BIN}"
+
 sh ./tests/integration/test_boot.sh
 sh ./tests/integration/test_halt.sh
+sh ./tests/integration/test_dir.sh
+sh ./tests/integration/test_help.sh
+sh ./tests/integration/test_mem.sh
+sh ./tests/integration/test_type.sh
+sh ./tests/integration/test_run.sh
+sh ./tests/integration/test_del.sh
+sh ./tests/integration/test_cc.sh
+sh ./tests/integration/test_add.sh
+sh ./tests/integration/test_strcat.sh
+sh ./tests/integration/test_count.sh
+sh ./tests/integration/test_echo.sh
+sh ./tests/integration/test_memtest.sh
 
 echo "All tests passed."

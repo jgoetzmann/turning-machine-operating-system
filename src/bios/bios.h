@@ -5,6 +5,7 @@
 
 void bios_init(void);
 void bios_dispatch(cpu_t *cpu);
+int bios_run_program_pending(void);
 int bios_pending_output(void);
 char bios_get_output(void);
 uint8_t bios_current_disk(void);

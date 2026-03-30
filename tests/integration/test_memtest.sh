@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+set -eu
+
+CC_CASE=memtest ./build/tests/compiler/test_expected_outputs >/dev/null
+echo "PASS: test_memtest"
