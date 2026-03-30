@@ -12,6 +12,9 @@ typedef struct {
     uint8_t io_out_port;
     uint8_t io_out_value;
     uint8_t io_in_ports[256];
+    uint8_t interrupts_enabled;
+    uint8_t rim_value;
+    uint8_t sim_value;
     uint64_t cycles;
 } cpu_t;
 

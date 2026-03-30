@@ -499,6 +499,22 @@ void cpu_step(cpu_t *cpu) {
                 cpu->pc = (uint16_t)(next_pc + 1u);
                 break;
             }
+            case 0xFBu: /* EI */
+                cpu->interrupts_enabled = 1u;
+                cpu->pc = next_pc;
+                break;
+            case 0xF3u: /* DI */
+                cpu->interrupts_enabled = 0u;
+                cpu->pc = next_pc;
+                break;
+            case 0x20u: /* RIM */
+                cpu->a = cpu->rim_value;
+                cpu->pc = next_pc;
+                break;
+            case 0x30u: /* SIM */
+                cpu->sim_value = cpu->a;
+                cpu->pc = next_pc;
+                break;
 
             default:
                 if ((opcode >= 0x80u) && (opcode <= 0x87u)) { /* ADD r */
@@ -629,6 +645,12 @@ void cpu_step(cpu_t *cpu) {
                             break;
                     }
                     cpu->pc = next_pc;
+                } else if ((opcode == 0xC7u) || (opcode == 0xCFu) || (opcode == 0xD7u) ||
+                           (opcode == 0xDFu) || (opcode == 0xE7u) || (opcode == 0xEFu) ||
+                           (opcode == 0xF7u) || (opcode == 0xFFu)) { /* RST n */
+                    const uint8_t rst = (uint8_t)((opcode >> 3u) & 0x07u);
+                    push_u16(cpu, next_pc);
+                    cpu->pc = (uint16_t)(rst * 8u);
                 } else
                 if ((opcode >= 0x40u) && (opcode <= 0x7Fu)) { /* MOV dst,src (except 0x76) */
                     const uint8_t dst = (uint8_t)((opcode >> 3u) & 0x07u);
