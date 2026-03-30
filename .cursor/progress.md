@@ -92,9 +92,9 @@
 - [ ] P2-09 Integration test: boot OS, shell prompt appears, `dir` runs cleanly
 
 ### Boot
-- [ ] P2-10 BOOT state loads BIOS jump table into `mem[0x0000..0x00FF]`
-- [ ] P2-11 BOOT state loads `bin/shell.com` into `mem[0x0100..]` from disk or embedded blob
-- [ ] P2-12 BOOT sets `cpu.pc = 0x0100` and transitions to SHELL
+- [x] P2-10 BOOT state loads BIOS jump table into `mem[0x0000..0x00FF]`
+- [x] P2-11 BOOT state loads `bin/shell.com` into `mem[0x0100..]` from disk or embedded blob
+- [x] P2-12 BOOT sets `cpu.pc = 0x0100` and transitions to SHELL
 - [ ] P2-13 Integration test: full boot sequence, shell prompt, `halt` command
 
 ---

@@ -15,6 +15,8 @@
 #define KERNEL_META_PATH "/tmp/turingos_meta.bin"
 #define KERNEL_TAPE_SIZE 65536u
 #define KERNEL_META_SIZE 64u
+#define KERNEL_SHELL_LOAD_ADDR 0x0100u
+#define KERNEL_TPA_END 0x3FFFu
 
 static void kernel_drain_bios_output(void) {
     while (bios_pending_output()) {
@@ -36,6 +38,35 @@ static void kernel_write_meta(const kernel_t *k) {
     for (i = 0; i < KERNEL_DIRTY_BYTES; ++i) {
         mem_write((addr_t)(KERNEL_META_DIRTY_ADDR + i), 0u);
     }
+}
+
+static void kernel_load_bios_vectors(void) {
+    addr_t addr;
+    for (addr = 0x0000u; addr <= 0x00FFu; ++addr) {
+        mem_write(addr, 0x00u);
+    }
+}
+
+static int kernel_load_shell_com(void) {
+    FILE *fp = fopen("bin/shell.com", "rb");
+    int ch;
+    addr_t addr = KERNEL_SHELL_LOAD_ADDR;
+
+    if (fp == NULL) {
+        return -1;
+    }
+    while ((ch = fgetc(fp)) != EOF) {
+        if (addr > KERNEL_TPA_END) {
+            (void)fclose(fp);
+            return -1;
+        }
+        mem_write(addr, (uint8_t)ch);
+        addr++;
+    }
+    if (fclose(fp) != 0) {
+        return -1;
+    }
+    return 0;
 }
 
 static void kernel_write_tape_snapshot(void) {
@@ -111,9 +142,12 @@ void kernel_run(kernel_t *k) {
 
         switch (k->state) {
             case KS_BOOT:
-                /* Placeholder boot image until shell loader exists. */
-                mem_write(0x0100u, 0x76u); /* HLT */
-                k->cpu.pc = 0x0100u;
+                kernel_load_bios_vectors();
+                if (kernel_load_shell_com() != 0) {
+                    /* Fail-safe so boot still terminates deterministically. */
+                    mem_write(KERNEL_SHELL_LOAD_ADDR, 0x76u); /* HLT */
+                }
+                k->cpu.pc = KERNEL_SHELL_LOAD_ADDR;
                 k->state = KS_SHELL;
                 break;
 

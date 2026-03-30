@@ -194,3 +194,6 @@ Added a halt handshake flag (`halt_requested`) so `halt` command can signal kern
 Added shell line-editing support with explicit backspace handling (`0x08` and `0x7F`) via `shell_line_push_char`, bounded 128-character input buffering, newline completion, and reset/access helpers.
 Replaced the `make shell` placeholder flow with a host compile pipeline: `tools/cc_driver.c` now calls `cc_compile` to generate `bin/shell.com` from `src/shell/shell.c`.
 Updated `cc_compile` stub to emit a deterministic minimal `.com` binary (includes source checksum bytes and `HLT`) so shell build and command wiring are functional until the full compiler backend is implemented.
+## [2026-03-30] kernel boot — BIOS vectors and shell.com loading
+Updated BOOT state to initialize `mem[0x0000..0x00FF]` (BIOS vector region) with a defined table image and to load `bin/shell.com` bytes into TPA starting at `0x0100` from the host filesystem.
+BOOT now sets `cpu.pc = 0x0100` and transitions to `KS_SHELL` directly. If shell loading fails, BOOT falls back to a `HLT` at `0x0100` to preserve deterministic termination in current stub mode.
