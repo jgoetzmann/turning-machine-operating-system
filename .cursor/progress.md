@@ -81,7 +81,7 @@
 ## PHASE 2 — OS Layer
 
 ### Shell
-- [ ] P2-01 Write `src/shell/shell.c` — shell logic as a C program (compiled by host CC to 8080 .com)
+- [x] P2-01 Write `src/shell/shell.c` — shell logic as a C program (compiled by host CC to 8080 .com)
 - [ ] P2-02 Implement `dir` command
 - [ ] P2-03 Implement `type <file>` command
 - [ ] P2-04 Implement `run <file>` — load `.com` into TPA, set PC=0x0100, switch to RUNNING state

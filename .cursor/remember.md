@@ -177,3 +177,6 @@ Updated `fs_flush()` to flush only when dirty and clear the dirty flag on succes
 ## [2026-03-30] tests/fs — Covered create/readback and list/delete flows
 Confirmed `tests/fs/test_fs_sector.c` now explicitly covers both remaining Phase 1 filesystem test goals: (1) create/open-write-close-reopen-readback-compare (`DATA.BIN`) and (2) directory list/delete verification (`fs_list`, `fs_delete`, and `fs_exists` checks).
 No additional FS test binary was required because the existing FS test suite already executes these assertions under `make test`.
+## [2026-03-30] shell — Command parsing foundation for Phase 2
+Replaced the shell stub with a concrete shell core API in `src/shell/shell.c`/`shell.h`: prompt rendering (`A> `), command parsing to a typed command enum, argument capture, and minimal render behavior (`help`, unknown command `?`, generic placeholder response for recognized commands).
+This intentionally establishes the command-dispatch skeleton for upcoming command-specific tasks (`dir`, `type`, `run`, `cc`, `del`, `cls`, `mem`, `halt`) without prematurely implementing their filesystem/kernel side effects.
