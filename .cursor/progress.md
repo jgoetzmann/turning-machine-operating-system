@@ -109,10 +109,10 @@
 - [~] P3-05 Implement code generator — walk AST, emit 8080 instructions
 - [x] P3-06 Code gen: global variables (at fixed addresses above TPA entry)
 - [x] P3-07 Code gen: local variables (on 8080 stack)
-- [ ] P3-08 Code gen: arithmetic (+, -, *, /)
-- [ ] P3-09 Code gen: comparisons and conditional jumps
-- [ ] P3-10 Code gen: while loop, for loop
-- [ ] P3-11 Code gen: function call and return
+- [x] P3-08 Code gen: arithmetic (+, -, *, /)
+- [x] P3-09 Code gen: comparisons and conditional jumps
+- [x] P3-10 Code gen: while loop, for loop
+- [x] P3-11 Code gen: function call and return
 - [ ] P3-12 Code gen: `putchar()`, `getchar()`, `puts()` as BIOS wrappers
 - [ ] P3-13 Emit flat binary `.com` output
 - [ ] P3-14 Compiler unit tests: compile each test program, verify binary runs in emulator and produces expected output

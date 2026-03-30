@@ -221,3 +221,15 @@ Top-level variable declarations are now reserved at fixed addresses starting at 
 ## [2026-03-30] compiler/codegen — Local variables lowered as SP-relative storage
 Added distinct global/local symbol tables in codegen and switched local declaration resolution to SP-relative slots. Local identifier loads/stores now emit `LXI H,offset; DAD SP; MOV A,M` and `MOV B,A; LXI H,offset; DAD SP; MOV M,B` patterns, while globals continue to use absolute `LDA/STA`.
 Codegen now emits a simple function prologue `LXI SP,0xFDFF` before function-body lowering so local slots are anchored to the 8080 stack region. This advances local-variable support while preserving existing fallback behavior for still-unsupported control-flow and call semantics.
+## [2026-03-30] compiler/codegen — Added `*` and `/` arithmetic lowering
+Extended binary expression codegen to cover multiplication and division in addition to existing `+`/`-`. Multiplication is lowered as repeated addition in a generated loop; division is lowered as repeated subtraction with quotient accumulation and explicit divide-by-zero result `0`.
+Added internal jump placeholder/patch helpers for short forward branches in emitted machine code, enabling loop/control labels during expression lowering while keeping the rest of compile flow unchanged and fallback-safe for other unsupported AST constructs.
+## [2026-03-30] compiler/codegen — Comparison ops emit boolean via branch lowering
+Added codegen for relational/equality binary operators (`==`, `!=`, `<`, `<=`, `>`, `>=`) by lowering to `CMP` plus conditional jumps, with result canonicalized into `A` as `0` or `1`.
+This establishes the comparison + conditional-branch substrate needed by upcoming control-flow statement lowering (`if`/`while`/`for`) while keeping the current compile-time fallback behavior for unrelated unsupported AST nodes.
+## [2026-03-30] compiler/codegen — Lowered `while` and `for` statements
+Implemented statement-level loop lowering for `CC_AST_WHILE` and `CC_AST_FOR` in `cg_stmt()`. Both now emit loop labels, evaluate condition expressions through a shared `jump-if-zero` helper, branch to loop-exit labels, and jump back to the loop head.
+`for` lowering now handles initializer, condition, body, and step in order (using parser field mapping: `left/init`, `right/cond`, `next/body`, `third/step`) and preserves early-return propagation so generated code does not append dead loop-back jumps after a terminal return.
+## [2026-03-30] compiler/codegen — Multi-function CALL/RET emission pipeline
+Refactored codegen to emit a true function table: collect top-level function declarations, emit a small entry stub (`LXI SP`, `CALL main`, `HLT`), then emit each function body with `RET`-based returns and default epilogues when no explicit return appears.
+Added `CC_AST_CALL` expression lowering with address patching for forward calls: unresolved call sites are recorded and patched after all function addresses are known. `CC_AST_RETURN` now emits `RET` instead of `HLT`, enabling nested function calls while preserving program termination via entry-stub `HLT` after `main` returns.
