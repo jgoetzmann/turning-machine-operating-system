@@ -209,3 +209,6 @@ Expanded `.gitignore` guidance to keep generated outputs out of commits, with `b
 ## [2026-03-30] repo hygiene — Shell binary moved under build/
 Standardized all generated artifacts under `build/` by moving shell binary output from `bin/shell.com` to `build/bin/shell.com`.
 Updated producer/consumer paths (`make shell`, kernel boot loader, spec/progress docs) so runtime loading now targets `build/bin/shell.com`; `.gitignore` now relies on `build/` instead of a separate top-level `bin` rule.
+## [2026-03-30] compiler/parser — Recursive-descent AST pass integrated into compile flow
+Implemented `cc_parse()` in `src/compiler/compiler.c` and exposed it in `compiler.h`. The parser now consumes lexer output and builds an AST node pool covering top-level declarations/functions, variable declarations/assignments, expression precedence (`||`..unary), calls, and control statements (`if/else`, `while`, `for`, `return`).
+The parser is now executed from `cc_compile()` after lexing; compile fails early on parse errors instead of silently emitting a `.com` for invalid source. Kept node storage static-array based in the existing host compile pass to stay deterministic and avoid broad compiler-architecture changes while codegen remains pending.

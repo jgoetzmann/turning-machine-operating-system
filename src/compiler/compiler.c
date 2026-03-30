@@ -2,6 +2,7 @@
 
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static cc_token_kind_t keyword_kind(const char *s, uint32_t len) {
@@ -167,6 +168,455 @@ int cc_lex(const char *src, cc_token_t *tokens, int max_tokens) {
     return count;
 }
 
+typedef struct {
+    const char *src;
+    const cc_token_t *tokens;
+    int token_count;
+    int pos;
+    cc_ast_node_t *nodes;
+    int node_count;
+    int max_nodes;
+} cc_parser_t;
+
+static int p_peek_kind(const cc_parser_t *p) {
+    if (p->pos < 0 || p->pos >= p->token_count) {
+        return (int)CC_TOK_EOF;
+    }
+    return (int)p->tokens[p->pos].kind;
+}
+
+static int p_match(cc_parser_t *p, cc_token_kind_t kind) {
+    if (p_peek_kind(p) == (int)kind) {
+        p->pos++;
+        return 1;
+    }
+    return 0;
+}
+
+static int p_expect(cc_parser_t *p, cc_token_kind_t kind) {
+    if (!p_match(p, kind)) {
+        return 0;
+    }
+    return 1;
+}
+
+static int p_new_node(cc_parser_t *p, cc_ast_kind_t kind, int token_index) {
+    cc_ast_node_t *n;
+    if (p->node_count >= p->max_nodes) {
+        return -1;
+    }
+    n = &p->nodes[p->node_count];
+    n->kind = kind;
+    n->value = 0;
+    n->left = -1;
+    n->right = -1;
+    n->third = -1;
+    n->next = -1;
+    n->op = CC_TOK_EOF;
+    n->token_index = (token_index < 0) ? 0u : (uint32_t)token_index;
+    p->node_count++;
+    return p->node_count - 1;
+}
+
+static int p_parse_expr(cc_parser_t *p);
+static int p_parse_stmt(cc_parser_t *p);
+
+static int p_parse_number(const char *s, uint32_t len) {
+    int value = 0;
+    uint32_t i;
+    for (i = 0u; i < len; ++i) {
+        value = (value * 10) + (int)(s[i] - '0');
+    }
+    return value;
+}
+
+static int p_parse_primary(cc_parser_t *p) {
+    int tok_i = p->pos;
+    int node;
+    if (p_match(p, CC_TOK_NUMBER)) {
+        const cc_token_t *t = &p->tokens[tok_i];
+        node = p_new_node(p, CC_AST_LITERAL, tok_i);
+        if (node < 0) return -1;
+        p->nodes[node].value = p_parse_number(&p->src[t->offset], t->length);
+        return node;
+    }
+    if (p_match(p, CC_TOK_CHAR) || p_match(p, CC_TOK_STRING)) {
+        node = p_new_node(p, CC_AST_LITERAL, tok_i);
+        return node;
+    }
+    if (p_match(p, CC_TOK_IDENT)) {
+        int ident_node = p_new_node(p, CC_AST_IDENT, tok_i);
+        if (ident_node < 0) return -1;
+        if (p_match(p, CC_TOK_LPAREN)) {
+            int call_node = p_new_node(p, CC_AST_CALL, tok_i);
+            int first_arg = -1;
+            int last_arg = -1;
+            if (call_node < 0) return -1;
+            p->nodes[call_node].left = ident_node;
+            if (!p_match(p, CC_TOK_RPAREN)) {
+                for (;;) {
+                    int arg = p_parse_expr(p);
+                    if (arg < 0) return -1;
+                    if (first_arg < 0) {
+                        first_arg = arg;
+                    } else {
+                        p->nodes[last_arg].next = arg;
+                    }
+                    last_arg = arg;
+                    if (p_match(p, CC_TOK_COMMA)) {
+                        continue;
+                    }
+                    if (!p_expect(p, CC_TOK_RPAREN)) return -1;
+                    break;
+                }
+            }
+            p->nodes[call_node].right = first_arg;
+            return call_node;
+        }
+        return ident_node;
+    }
+    if (p_match(p, CC_TOK_LPAREN)) {
+        int expr = p_parse_expr(p);
+        if (expr < 0) return -1;
+        if (!p_expect(p, CC_TOK_RPAREN)) return -1;
+        return expr;
+    }
+    return -1;
+}
+
+static int p_parse_unary(cc_parser_t *p) {
+    int tok_i = p->pos;
+    cc_token_kind_t op = (cc_token_kind_t)p_peek_kind(p);
+    if (op == CC_TOK_NOT || op == CC_TOK_MINUS || op == CC_TOK_PLUS) {
+        int node;
+        int rhs;
+        p->pos++;
+        rhs = p_parse_unary(p);
+        if (rhs < 0) return -1;
+        node = p_new_node(p, CC_AST_UNOP, tok_i);
+        if (node < 0) return -1;
+        p->nodes[node].op = op;
+        p->nodes[node].left = rhs;
+        return node;
+    }
+    return p_parse_primary(p);
+}
+
+static int p_parse_bin_ltr(cc_parser_t *p,
+                           int (*sub)(cc_parser_t *),
+                           const cc_token_kind_t *ops,
+                           int op_count) {
+    int lhs = sub(p);
+    int i;
+    if (lhs < 0) return -1;
+    for (;;) {
+        cc_token_kind_t op = (cc_token_kind_t)p_peek_kind(p);
+        int match = 0;
+        for (i = 0; i < op_count; ++i) {
+            if (op == ops[i]) {
+                match = 1;
+                break;
+            }
+        }
+        if (!match) break;
+        p->pos++;
+        {
+            int rhs = sub(p);
+            int node;
+            if (rhs < 0) return -1;
+            node = p_new_node(p, CC_AST_BINOP, p->pos - 1);
+            if (node < 0) return -1;
+            p->nodes[node].op = op;
+            p->nodes[node].left = lhs;
+            p->nodes[node].right = rhs;
+            lhs = node;
+        }
+    }
+    return lhs;
+}
+
+static int p_parse_mul(cc_parser_t *p) {
+    static const cc_token_kind_t ops[] = {CC_TOK_STAR, CC_TOK_SLASH, CC_TOK_PERCENT};
+    return p_parse_bin_ltr(p, p_parse_unary, ops, 3);
+}
+
+static int p_parse_add(cc_parser_t *p) {
+    static const cc_token_kind_t ops[] = {CC_TOK_PLUS, CC_TOK_MINUS};
+    return p_parse_bin_ltr(p, p_parse_mul, ops, 2);
+}
+
+static int p_parse_rel(cc_parser_t *p) {
+    static const cc_token_kind_t ops[] = {CC_TOK_LT, CC_TOK_LE, CC_TOK_GT, CC_TOK_GE};
+    return p_parse_bin_ltr(p, p_parse_add, ops, 4);
+}
+
+static int p_parse_eq(cc_parser_t *p) {
+    static const cc_token_kind_t ops[] = {CC_TOK_EQ, CC_TOK_NE};
+    return p_parse_bin_ltr(p, p_parse_rel, ops, 2);
+}
+
+static int p_parse_and(cc_parser_t *p) {
+    static const cc_token_kind_t ops[] = {CC_TOK_AND_AND};
+    return p_parse_bin_ltr(p, p_parse_eq, ops, 1);
+}
+
+static int p_parse_or(cc_parser_t *p) {
+    static const cc_token_kind_t ops[] = {CC_TOK_OR_OR};
+    return p_parse_bin_ltr(p, p_parse_and, ops, 1);
+}
+
+static int p_parse_assign(cc_parser_t *p) {
+    int lhs = p_parse_or(p);
+    if (lhs < 0) return -1;
+    if (p_match(p, CC_TOK_ASSIGN)) {
+        int rhs = p_parse_assign(p);
+        int node = p_new_node(p, CC_AST_ASSIGN, p->pos - 1);
+        if (rhs < 0 || node < 0) return -1;
+        p->nodes[node].left = lhs;
+        p->nodes[node].right = rhs;
+        return node;
+    }
+    return lhs;
+}
+
+static int p_parse_expr(cc_parser_t *p) {
+    return p_parse_assign(p);
+}
+
+static int p_parse_var_decl_stmt(cc_parser_t *p, cc_token_kind_t type_tok) {
+    int node;
+    int ident_node;
+    if (!p_expect(p, CC_TOK_IDENT)) return -1;
+    ident_node = p_new_node(p, CC_AST_IDENT, p->pos - 1);
+    if (ident_node < 0) return -1;
+    node = p_new_node(p, CC_AST_VAR_DECL, p->pos - 1);
+    if (node < 0) return -1;
+    p->nodes[node].op = type_tok;
+    p->nodes[node].left = ident_node;
+    if (p_match(p, CC_TOK_ASSIGN)) {
+        int init = p_parse_expr(p);
+        if (init < 0) return -1;
+        p->nodes[node].right = init;
+    }
+    if (!p_expect(p, CC_TOK_SEMI)) return -1;
+    return node;
+}
+
+static int p_parse_block(cc_parser_t *p) {
+    int first = -1;
+    int last = -1;
+    int block = p_new_node(p, CC_AST_PROGRAM, p->pos);
+    if (block < 0) return -1;
+    if (!p_expect(p, CC_TOK_LBRACE)) return -1;
+    while (p_peek_kind(p) != (int)CC_TOK_RBRACE && p_peek_kind(p) != (int)CC_TOK_EOF) {
+        int st = p_parse_stmt(p);
+        if (st < 0) return -1;
+        if (first < 0) first = st;
+        else p->nodes[last].next = st;
+        last = st;
+    }
+    if (!p_expect(p, CC_TOK_RBRACE)) return -1;
+    p->nodes[block].left = first;
+    return block;
+}
+
+static int p_parse_for(cc_parser_t *p) {
+    int node = p_new_node(p, CC_AST_FOR, p->pos);
+    int init = -1;
+    int cond = -1;
+    int step = -1;
+    int body;
+    if (node < 0) return -1;
+    if (!p_expect(p, CC_TOK_KW_FOR) || !p_expect(p, CC_TOK_LPAREN)) return -1;
+    if (p_peek_kind(p) == (int)CC_TOK_KW_INT || p_peek_kind(p) == (int)CC_TOK_KW_CHAR) {
+        cc_token_kind_t t = (cc_token_kind_t)p_peek_kind(p);
+        p->pos++;
+        init = p_parse_var_decl_stmt(p, t);
+        if (init < 0) return -1;
+    } else if (!p_match(p, CC_TOK_SEMI)) {
+        init = p_parse_expr(p);
+        if (init < 0 || !p_expect(p, CC_TOK_SEMI)) return -1;
+    }
+    if (!p_match(p, CC_TOK_SEMI)) {
+        cond = p_parse_expr(p);
+        if (cond < 0 || !p_expect(p, CC_TOK_SEMI)) return -1;
+    }
+    if (!p_match(p, CC_TOK_RPAREN)) {
+        step = p_parse_expr(p);
+        if (step < 0 || !p_expect(p, CC_TOK_RPAREN)) return -1;
+    }
+    body = p_parse_stmt(p);
+    if (body < 0) return -1;
+    p->nodes[node].left = init;
+    p->nodes[node].right = cond;
+    p->nodes[node].third = step;
+    p->nodes[node].next = body;
+    return node;
+}
+
+static int p_parse_stmt(cc_parser_t *p) {
+    if (p_peek_kind(p) == (int)CC_TOK_LBRACE) {
+        return p_parse_block(p);
+    }
+    if (p_peek_kind(p) == (int)CC_TOK_KW_IF) {
+        int node = p_new_node(p, CC_AST_IF, p->pos);
+        int cond;
+        int then_node;
+        if (node < 0) return -1;
+        p->pos++;
+        if (!p_expect(p, CC_TOK_LPAREN)) return -1;
+        cond = p_parse_expr(p);
+        if (cond < 0 || !p_expect(p, CC_TOK_RPAREN)) return -1;
+        then_node = p_parse_stmt(p);
+        if (then_node < 0) return -1;
+        p->nodes[node].left = cond;
+        p->nodes[node].right = then_node;
+        if (p_match(p, CC_TOK_KW_ELSE)) {
+            int else_node = p_parse_stmt(p);
+            if (else_node < 0) return -1;
+            p->nodes[node].third = else_node;
+        }
+        return node;
+    }
+    if (p_peek_kind(p) == (int)CC_TOK_KW_WHILE) {
+        int node = p_new_node(p, CC_AST_WHILE, p->pos);
+        int cond;
+        int body;
+        if (node < 0) return -1;
+        p->pos++;
+        if (!p_expect(p, CC_TOK_LPAREN)) return -1;
+        cond = p_parse_expr(p);
+        if (cond < 0 || !p_expect(p, CC_TOK_RPAREN)) return -1;
+        body = p_parse_stmt(p);
+        if (body < 0) return -1;
+        p->nodes[node].left = cond;
+        p->nodes[node].right = body;
+        return node;
+    }
+    if (p_peek_kind(p) == (int)CC_TOK_KW_FOR) {
+        return p_parse_for(p);
+    }
+    if (p_peek_kind(p) == (int)CC_TOK_KW_RETURN) {
+        int node = p_new_node(p, CC_AST_RETURN, p->pos);
+        if (node < 0) return -1;
+        p->pos++;
+        if (!p_match(p, CC_TOK_SEMI)) {
+            int expr = p_parse_expr(p);
+            if (expr < 0 || !p_expect(p, CC_TOK_SEMI)) return -1;
+            p->nodes[node].left = expr;
+        }
+        return node;
+    }
+    if (p_peek_kind(p) == (int)CC_TOK_KW_INT || p_peek_kind(p) == (int)CC_TOK_KW_CHAR) {
+        cc_token_kind_t t = (cc_token_kind_t)p_peek_kind(p);
+        p->pos++;
+        return p_parse_var_decl_stmt(p, t);
+    }
+    if (p_match(p, CC_TOK_SEMI)) {
+        return p_new_node(p, CC_AST_UNKNOWN, p->pos - 1);
+    }
+    {
+        int expr = p_parse_expr(p);
+        if (expr < 0 || !p_expect(p, CC_TOK_SEMI)) return -1;
+        return expr;
+    }
+}
+
+int cc_parse(const char *src,
+             const cc_token_t *tokens,
+             int token_count,
+             cc_ast_node_t *nodes,
+             int max_nodes) {
+    cc_parser_t p;
+    int root;
+    int first = -1;
+    int last = -1;
+    if (src == NULL || tokens == NULL || token_count <= 0 || nodes == NULL || max_nodes <= 0) {
+        return -1;
+    }
+    memset(&p, 0, sizeof(p));
+    p.src = src;
+    p.tokens = tokens;
+    p.token_count = token_count;
+    p.nodes = nodes;
+    p.max_nodes = max_nodes;
+
+    root = p_new_node(&p, CC_AST_PROGRAM, 0);
+    if (root < 0) return -1;
+
+    while (p_peek_kind(&p) != (int)CC_TOK_EOF) {
+        if (p_peek_kind(&p) != (int)CC_TOK_KW_INT && p_peek_kind(&p) != (int)CC_TOK_KW_CHAR) {
+            return -1;
+        }
+        {
+            cc_token_kind_t type_tok = (cc_token_kind_t)p_peek_kind(&p);
+            int decl;
+            int ident;
+            int marker;
+            p.pos++;
+            if (!p_expect(&p, CC_TOK_IDENT)) return -1;
+            ident = p_new_node(&p, CC_AST_IDENT, p.pos - 1);
+            if (ident < 0) return -1;
+            marker = p.pos;
+            if (p_match(&p, CC_TOK_LPAREN)) {
+                int func = p_new_node(&p, CC_AST_FUNC_DECL, p.pos - 2);
+                int param_first = -1;
+                int param_last = -1;
+                int body;
+                if (func < 0) return -1;
+                p.nodes[func].op = type_tok;
+                p.nodes[func].left = ident;
+                if (!p_match(&p, CC_TOK_RPAREN)) {
+                    for (;;) {
+                        int param_decl;
+                        int param_ident;
+                        cc_token_kind_t ptype;
+                        if (p_peek_kind(&p) != (int)CC_TOK_KW_INT &&
+                            p_peek_kind(&p) != (int)CC_TOK_KW_CHAR) return -1;
+                        ptype = (cc_token_kind_t)p_peek_kind(&p);
+                        p.pos++;
+                        if (!p_expect(&p, CC_TOK_IDENT)) return -1;
+                        param_ident = p_new_node(&p, CC_AST_IDENT, p.pos - 1);
+                        if (param_ident < 0) return -1;
+                        param_decl = p_new_node(&p, CC_AST_VAR_DECL, p.pos - 1);
+                        if (param_decl < 0) return -1;
+                        p.nodes[param_decl].op = ptype;
+                        p.nodes[param_decl].left = param_ident;
+                        if (param_first < 0) param_first = param_decl;
+                        else p.nodes[param_last].next = param_decl;
+                        param_last = param_decl;
+                        if (p_match(&p, CC_TOK_COMMA)) continue;
+                        if (!p_expect(&p, CC_TOK_RPAREN)) return -1;
+                        break;
+                    }
+                }
+                body = p_parse_block(&p);
+                if (body < 0) return -1;
+                p.nodes[func].right = param_first;
+                p.nodes[func].third = body;
+                decl = func;
+            } else {
+                int var = p_new_node(&p, CC_AST_VAR_DECL, marker - 1);
+                if (var < 0) return -1;
+                p.nodes[var].op = type_tok;
+                p.nodes[var].left = ident;
+                if (p_match(&p, CC_TOK_ASSIGN)) {
+                    int init = p_parse_expr(&p);
+                    if (init < 0) return -1;
+                    p.nodes[var].right = init;
+                }
+                if (!p_expect(&p, CC_TOK_SEMI)) return -1;
+                decl = var;
+            }
+            if (first < 0) first = decl;
+            else p.nodes[last].next = decl;
+            last = decl;
+        }
+    }
+    p.nodes[root].left = first;
+    return p.node_count;
+}
+
 int cc_compile(const char *src_path, const char *out_path) {
     FILE *src;
     FILE *out;
@@ -174,9 +624,11 @@ int cc_compile(const char *src_path, const char *out_path) {
     unsigned int checksum = 0u;
     unsigned char blob[8];
     cc_token_t toks[1024];
+    cc_ast_node_t nodes[2048];
     char src_buf[4096];
     size_t nread;
     int tok_count;
+    int node_count;
 
     if (src_path == NULL || out_path == NULL) {
         return -1;
@@ -193,7 +645,12 @@ int cc_compile(const char *src_path, const char *out_path) {
         fclose(src);
         return -1;
     }
-    (void)toks;
+    node_count = cc_parse(src_buf, toks, tok_count, nodes, (int)(sizeof(nodes) / sizeof(nodes[0])));
+    if (node_count < 0) {
+        fclose(src);
+        return -1;
+    }
+    (void)nodes;
     for (size_t i = 0u; i < nread; ++i) {
         ch = (unsigned char)src_buf[i];
         checksum = (checksum + (unsigned int)ch) & 0xFFFFu;

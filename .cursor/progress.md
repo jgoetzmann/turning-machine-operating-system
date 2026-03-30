@@ -104,7 +104,7 @@
 ### Compiler
 - [x] P3-01 Implement lexer (`cc_lex`) — tokenize C source into token stream
 - [x] P3-02 Define token types and AST node types in `compiler.h`
-- [ ] P3-03 Implement parser — recursive descent, produce AST
+- [x] P3-03 Implement parser — recursive descent, produce AST
 - [ ] P3-04 Implement AST for: variable decl, assignment, arithmetic expr, if/else, while, for, function decl/call, return
 - [ ] P3-05 Implement code generator — walk AST, emit 8080 instructions
 - [ ] P3-06 Code gen: global variables (at fixed addresses above TPA entry)
@@ -116,6 +116,7 @@
 - [ ] P3-12 Code gen: `putchar()`, `getchar()`, `puts()` as BIOS wrappers
 - [ ] P3-13 Emit flat binary `.com` output
 - [ ] P3-14 Compiler unit tests: compile each test program, verify binary runs in emulator and produces expected output
+- [ ] P3-15 Add parser unit tests for valid/invalid C-subset constructs and AST node coverage
 
 ---
 
