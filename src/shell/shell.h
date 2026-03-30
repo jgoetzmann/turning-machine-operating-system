@@ -20,11 +20,13 @@ typedef enum {
 typedef struct {
     shell_cmd_t last_cmd;
     char arg[129];
+    int run_requested;
+    unsigned short run_entry;
 } shell_t;
 
 void shell_init(shell_t *sh);
 void shell_prompt(FILE *out);
 shell_cmd_t shell_parse_line(shell_t *sh, const char *line);
-void shell_render_result(FILE *out, shell_cmd_t cmd, const char *arg);
+void shell_render_result(shell_t *sh, FILE *out, shell_cmd_t cmd, const char *arg);
 
 #endif

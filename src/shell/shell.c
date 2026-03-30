@@ -1,5 +1,6 @@
 #include "shell.h"
 
+#include "../emu/mem.h"
 #include "../fs/fs.h"
 
 #include <ctype.h>
@@ -16,6 +17,8 @@ void shell_init(shell_t *sh) {
     }
     sh->last_cmd = SHELL_CMD_NONE;
     sh->arg[0] = '\0';
+    sh->run_requested = 0;
+    sh->run_entry = 0x0100u;
 }
 
 void shell_prompt(FILE *out) {
@@ -81,14 +84,18 @@ shell_cmd_t shell_parse_line(shell_t *sh, const char *line) {
     return sh->last_cmd;
 }
 
-void shell_render_result(FILE *out, shell_cmd_t cmd, const char *arg) {
+void shell_render_result(shell_t *sh, FILE *out, shell_cmd_t cmd, const char *arg) {
     char names[64][13];
     uint8_t buf[256];
     int n;
     int i;
     int fh;
     int r;
+    unsigned short load_addr = 0x0100u;
 
+    if (sh != NULL) {
+        sh->run_requested = 0;
+    }
     if (out == NULL) {
         return;
     }
@@ -133,6 +140,41 @@ void shell_render_result(FILE *out, shell_cmd_t cmd, const char *arg) {
             }
             fs_close(fh);
             (void)fputc('\n', out);
+            break;
+        case SHELL_CMD_RUN:
+            if (arg == NULL || arg[0] == '\0' || sh == NULL) {
+                (void)fputs("?\n", out);
+                break;
+            }
+            if (fs_init("disk.img") != 0) {
+                (void)fputs("?\n", out);
+                break;
+            }
+            fh = fs_open(arg);
+            if (fh < 0) {
+                (void)fputs("?\n", out);
+                break;
+            }
+            while ((r = fs_read(fh, buf, (int)sizeof(buf))) > 0) {
+                int bi;
+                for (bi = 0; bi < r; ++bi) {
+                    mem_write((addr_t)load_addr, buf[bi]);
+                    load_addr++;
+                    if (load_addr == 0u) {
+                        fs_close(fh);
+                        (void)fputs("?\n", out);
+                        return;
+                    }
+                }
+            }
+            fs_close(fh);
+            if (r < 0) {
+                (void)fputs("?\n", out);
+                break;
+            }
+            sh->run_requested = 1;
+            sh->run_entry = 0x0100u;
+            (void)fputs("RUN\n", out);
             break;
         case SHELL_CMD_HELP:
             (void)fputs("dir type run cc del cls mem halt help\n", out);

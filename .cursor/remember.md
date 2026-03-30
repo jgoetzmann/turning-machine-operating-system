@@ -183,3 +183,6 @@ This intentionally establishes the command-dispatch skeleton for upcoming comman
 ## [2026-03-30] shell — Implemented `dir` and `type` through FS APIs
 Added concrete handlers in `shell_render_result()` for `dir` and `type <file>` commands. `dir` initializes the filesystem against `disk.img`, lists active entries through `fs_list`, and prints one name per line (or `(empty)` when no files are present).
 `type` now validates an argument, opens the requested file via `fs_open`, streams bytes with repeated `fs_read` calls, and writes content to the shell output stream. Both commands use `?` as an error response on missing args or FS/open failures.
+## [2026-03-30] shell — Implemented `run <file>` TPA loader hook
+Extended shell state with a run-request handshake (`run_requested`, `run_entry`) and updated `run` command handling to load file bytes from FS into TPA starting at `0x0100` via `mem_write`.
+After successful load, shell now sets `run_requested=1` and `run_entry=0x0100`, providing a deterministic hook for kernel integration to set `cpu.pc` and transition to `KS_RUNNING`.

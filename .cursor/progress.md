@@ -84,7 +84,7 @@
 - [x] P2-01 Write `src/shell/shell.c` — shell logic as a C program (compiled by host CC to 8080 .com)
 - [x] P2-02 Implement `dir` command
 - [x] P2-03 Implement `type <file>` command
-- [ ] P2-04 Implement `run <file>` — load `.com` into TPA, set PC=0x0100, switch to RUNNING state
+- [x] P2-04 Implement `run <file>` — load `.com` into TPA, set PC=0x0100, switch to RUNNING state
 - [ ] P2-05 Implement `cc <file.c>` — invoke compiler
 - [ ] P2-06 Implement `del`, `cls`, `mem`, `halt`, `help`
 - [ ] P2-07 Implement line editing (backspace)
