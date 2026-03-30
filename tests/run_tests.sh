@@ -13,6 +13,7 @@ CPU_CONTROL_BIN="${BUILD_DIR}/test_cpu_control"
 CPU_OPCODES_BIN="${BUILD_DIR}/test_opcodes"
 CPU_HLT_BIN="${BUILD_DIR}/test_cpu_hlt"
 CPU_FLAGS_BIN="${BUILD_DIR}/test_cpu_flags"
+BIOS_TEST_BIN="${BUILD_DIR}/test_bios"
 
 mkdir -p "${BUILD_DIR}"
 
@@ -113,5 +114,15 @@ cc -std=c99 -Wall -Wextra -Werror -pedantic \
   -o "${CPU_FLAGS_BIN}"
 
 "${CPU_FLAGS_BIN}"
+
+cc -std=c99 -Wall -Wextra -Werror -pedantic \
+  -I./src \
+  ./tests/bios/test_bios.c \
+  ./src/bios/bios.c \
+  ./src/emu/cpu.c \
+  ./src/emu/mem.c \
+  -o "${BIOS_TEST_BIN}"
+
+"${BIOS_TEST_BIN}"
 
 echo "All tests passed."
