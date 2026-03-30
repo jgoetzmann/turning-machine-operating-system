@@ -190,3 +190,7 @@ After successful load, shell now sets `run_requested=1` and `run_entry=0x0100`, 
 Implemented `cc` command wiring to `cc_compile(src, out)` with `.com` output path derivation from the provided source name.
 Implemented `del` through filesystem APIs (`fs_init("disk.img")` + `fs_delete`), `cls` via ANSI clear sequence, and `mem` as a fixed tape-region summary aligned to the spec map.
 Added a halt handshake flag (`halt_requested`) so `halt` command can signal kernel-facing termination intent while still producing shell output.
+## [2026-03-30] shell/build — Line editing and shell.com build path
+Added shell line-editing support with explicit backspace handling (`0x08` and `0x7F`) via `shell_line_push_char`, bounded 128-character input buffering, newline completion, and reset/access helpers.
+Replaced the `make shell` placeholder flow with a host compile pipeline: `tools/cc_driver.c` now calls `cc_compile` to generate `bin/shell.com` from `src/shell/shell.c`.
+Updated `cc_compile` stub to emit a deterministic minimal `.com` binary (includes source checksum bytes and `HLT`) so shell build and command wiring are functional until the full compiler backend is implemented.

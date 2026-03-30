@@ -43,10 +43,14 @@ $(BUILD_DIR)/mkdisk: tools/mkdisk.c
 	@mkdir -p "$(dir $@)"
 	$(CC) -std=c99 -Wall -Wextra -Werror -pedantic "$<" -o "$@"
 
-shell:
+$(BUILD_DIR)/cc_driver: tools/cc_driver.c src/compiler/compiler.c src/compiler/compiler.h
+	@mkdir -p "$(dir $@)"
+	$(CC) $(CFLAGS) tools/cc_driver.c src/compiler/compiler.c -o "$@"
+
+shell: $(BUILD_DIR)/cc_driver
 	@mkdir -p "$(BIN_DIR)"
-	@echo "shell.com placeholder" > "$(BIN_DIR)/shell.com"
-	@echo "Generated $(BIN_DIR)/shell.com placeholder."
+	"$(BUILD_DIR)/cc_driver" src/shell/shell.c "$(BIN_DIR)/shell.com"
+	@echo "Generated $(BIN_DIR)/shell.com."
 
 clean:
 	rm -rf "$(BUILD_DIR)" "$(BIN_DIR)/shell.com" disk.img

@@ -49,9 +49,52 @@ void shell_init(shell_t *sh) {
     }
     sh->last_cmd = SHELL_CMD_NONE;
     sh->arg[0] = '\0';
+    sh->line[0] = '\0';
+    sh->line_len = 0u;
     sh->run_requested = 0;
     sh->run_entry = 0x0100u;
     sh->halt_requested = 0;
+}
+
+void shell_line_reset(shell_t *sh) {
+    if (sh == NULL) {
+        return;
+    }
+    sh->line[0] = '\0';
+    sh->line_len = 0u;
+}
+
+int shell_line_push_char(shell_t *sh, char ch) {
+    if (sh == NULL) {
+        return 0;
+    }
+    if (ch == '\b' || (unsigned char)ch == 0x7Fu) {
+        if (sh->line_len > 0u) {
+            sh->line_len--;
+            sh->line[sh->line_len] = '\0';
+        }
+        return 0;
+    }
+    if (ch == '\r' || ch == '\n') {
+        sh->line[sh->line_len] = '\0';
+        return 1;
+    }
+    if ((unsigned char)ch < 0x20u || (unsigned char)ch > 0x7Eu) {
+        return 0;
+    }
+    if (sh->line_len >= 128u) {
+        return 0;
+    }
+    sh->line[sh->line_len++] = ch;
+    sh->line[sh->line_len] = '\0';
+    return 0;
+}
+
+const char *shell_line_buffer(const shell_t *sh) {
+    if (sh == NULL) {
+        return "";
+    }
+    return sh->line;
 }
 
 void shell_prompt(FILE *out) {
