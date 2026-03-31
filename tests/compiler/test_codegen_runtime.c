@@ -174,6 +174,24 @@ int main(void) {
              "int main(){ return (0||2) + (1&&0) + (1&&3); }",
              NULL,
              2);
+    /* Regression: rhs of && used MOV B for ==, clobbering saved left; shell "help" broke. */
+    run_case("nested_eq_and",
+             "int main(){ if(7==7 && 8==8 && 9==9 && 10==10){ return 42; } return 0; }",
+             NULL,
+             42);
+    run_case("nested_eq_or",
+             "int main(){ if(1==2 || 0==0 || 0==1 || 0==0){ return 99; } return 0; }",
+             NULL,
+             99);
+    run_case("linelen_empty",
+             "int main(){ return linelen(); }",
+             NULL,
+             0);
+    /* (true && false) || true — nested && under || uses scratch for both ops */
+    run_case("mixed_and_or",
+             "int main(){ if((1==1 && 0==1) || (1==1)){ return 7; } return 0; }",
+             NULL,
+             7);
     run_case("unary_ops",
              "int main(){ return !0 + !5 + -3; }",
              NULL,

@@ -186,8 +186,14 @@ cc -std=c99 -Wall -Wextra -Werror -pedantic \
 
 sh ./tests/integration/test_boot.sh
 sh ./tests/integration/test_halt.sh
+sh ./tests/integration/test_halt_command.sh
+sh ./tests/integration/test_halt_extra.sh
 sh ./tests/integration/test_dir.sh
+sh ./tests/integration/test_leading_space.sh
 sh ./tests/integration/test_help.sh
+sh ./tests/integration/test_cls.sh
+sh ./tests/integration/test_unknown.sh
+sh ./tests/integration/test_blank_line.sh
 sh ./tests/integration/test_mem.sh
 sh ./tests/integration/test_type.sh
 sh ./tests/integration/test_run.sh

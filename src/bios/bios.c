@@ -24,6 +24,9 @@ static char g_type_name[256];
 static unsigned int g_type_len = 0u;
 static int g_run_loaded = 0;
 
+static char g_shell_line[128];
+static unsigned int g_shell_line_len = 0u;
+
 #define BIOS_TPA_LOAD 0x0100u
 #define BIOS_TPA_END 0x3FFFu
 
@@ -42,6 +45,57 @@ static int out_queue_push(char ch) {
     g_out[g_head] = ch;
     g_head = next;
     return 1;
+}
+
+static void bios_readline(cpu_t *cpu) {
+    int ch;
+    unsigned int len = 0u;
+
+    g_shell_line_len = 0u;
+    g_shell_line[0] = '\0';
+    while (1) {
+        ch = getchar();
+        if (ch == EOF) {
+            /* Closed stdin (e.g. turingos </dev/null>): stop the shell loop. */
+            cpu->halted = 1;
+            return;
+        }
+        if (ch == 8 || ch == 127) {
+            if (len > 0u) {
+                len--;
+                (void)out_queue_push((char)8);
+                (void)out_queue_push(' ');
+                (void)out_queue_push((char)8);
+            }
+            continue;
+        }
+        if (ch == 10 || ch == 13) {
+            break;
+        }
+        if (len < 128u) {
+            g_shell_line[len] = (char)ch;
+            len++;
+        }
+    }
+    g_shell_line_len = len;
+    if (len < 128u) {
+        g_shell_line[len] = '\0';
+    } else {
+        g_shell_line[127] = '\0';
+    }
+}
+
+static void bios_lineget(cpu_t *cpu) {
+    unsigned int idx = (unsigned int)cpu->c;
+    if (idx >= g_shell_line_len || idx >= 128u) {
+        cpu->a = 0u;
+    } else {
+        cpu->a = (uint8_t)(unsigned char)g_shell_line[idx];
+    }
+}
+
+static void bios_linelen(cpu_t *cpu) {
+    cpu->a = (g_shell_line_len > 255u) ? 255u : (uint8_t)g_shell_line_len;
 }
 
 static void bios_conin(cpu_t *cpu) {
@@ -363,6 +417,8 @@ void bios_init(void) {
     g_type_len = 0u;
     g_type_name[0] = '\0';
     g_run_loaded = 0;
+    g_shell_line_len = 0u;
+    g_shell_line[0] = '\0';
 }
 
 void bios_dispatch(cpu_t *cpu) {
@@ -414,6 +470,15 @@ void bios_dispatch(cpu_t *cpu) {
             break;
         case 0x16u: /* CC end — host compile .c from disk to .com on disk */
             bios_cccompile(cpu);
+            break;
+        case 0x17u: /* READLINE — fill g_shell_line from stdin (backspace ok) */
+            bios_readline(cpu);
+            break;
+        case 0x18u: /* LINEGET — byte g_shell_line[C] into A */
+            bios_lineget(cpu);
+            break;
+        case 0x19u: /* LINELEN — line length into A */
+            bios_linelen(cpu);
             break;
         case 0x0Fu: { /* LISTDIR — print directory to console (host fs_list) */
             char names[64][13];

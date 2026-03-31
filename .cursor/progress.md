@@ -90,6 +90,7 @@
 - [x] P2-07 Implement line editing (backspace)
 - [x] P2-08 Add `make shell` target that compiles `shell.c` → `build/bin/shell.com`
 - [x] P2-09 Integration test: boot OS, shell prompt appears, `dir` runs cleanly
+- [x] P2-19 Shell refactor: `dispatch_line()` + BIOS-backed `readline` / `lineget` (OUT 0x17–0x18); `halt` uses `return 1` from dispatcher so `main` exits cleanly before post-`main` `HLT`
 
 ### Boot
 - [x] P2-10 BOOT state loads BIOS jump table into `mem[0x0000..0x00FF]`
@@ -118,6 +119,8 @@
 - [x] P3-14 Compiler unit tests: compile each test program, verify binary runs in emulator and produces expected output
 - [x] P3-15 Add parser unit tests for valid/invalid C-subset constructs and AST node coverage
 - [x] P3-16 Expand codegen coverage beyond `return` expression subset (vars, control flow, calls)
+- [x] P3-17 `lineget()` intrinsic: leave returned byte in A (clearing A broke every `lineget(...) == 'x'` dispatch test)
+- [x] P3-18 Nested `&&` / `||`: spill left operand to `mem[0x20FC]` before rhs — rhs comparisons use `B` and were clobbering the saved left (e.g. `help` / four-char commands)
 
 ---
 
@@ -163,6 +166,9 @@
 ### Compiler Tests
 - [x] P5-07 `tests/compiler/test_cc.c` — compile each test program, verify binary is non-empty
 - [x] P5-08 Emulator-run compiler output for each of 5 test programs, compare stdout to `.expected`
+- [x] P5-19 `tests/compiler/test_codegen_runtime.c` — `nested_eq_and` / `nested_eq_or` cases (four `==` under `&&` / `||`) regression for logical scratch at `0x20FC`
+- [x] P5-21 `tests/compiler/test_codegen_runtime.c` — `linelen_empty` (BIOS line length 0 at boot)
+- [x] P5-23 `tests/compiler/test_codegen_runtime.c` — `mixed_and_or` (`(a&&b)||c` shape)
 
 ### Integration Tests
 - [x] P5-09 `tests/integration/test_boot.sh` — boot + prompt appears
@@ -170,6 +176,12 @@
 - [x] P5-11 `tests/integration/test_strcat.sh` — compile and run `strcat.c`, check `helloworld`
 - [x] P5-12 `tests/integration/test_count.sh` — compile and run `count.c`, check 1–10
 - [x] P5-13 `tests/integration/test_echo.sh` — compile and run `echo.c` with input, check round-trip
+- [x] P5-20 `tests/integration/test_cls.sh` — `cls` emits `\033[2J\033[H` (CP/M-style clear)
+- [x] P5-22 `tests/integration/test_unknown.sh` — unknown line prints `?` (spec shell commands)
+- [x] P5-24 `tests/integration/test_blank_line.sh` — lone newline re-prompts without `?`
+- [x] P5-25 `tests/integration/test_halt_command.sh` — `halt` prints HALT and reaches state 5
+- [x] P5-26 `tests/integration/test_leading_space.sh` — leading spaces before `dir` still list disk
+- [x] P5-27 `tests/integration/test_halt_extra.sh` — `halt` with trailing args prints `?`, not HALT
 - [x] P5-14 `tests/integration/test_memtest.sh` — compile and run `memtest.c`, check `sum=55`
 - [x] P5-15 `tests/run_tests.sh` — runs all above, reports pass/fail count, exits 0 on all pass
 - [x] P5-16 `make test` calls `run_tests.sh` and forwards exit code

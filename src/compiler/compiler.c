@@ -669,6 +669,8 @@ static int cg_tok_ok(const cc_codegen_t *cg, uint32_t tok_i) {
 }
 
 #define CC_CODE_BASE 0x0100u
+/* One-byte temp for && / ||: right subexpr reuses B, so left cannot stay in B. */
+#define CC_LOGICAL_SCRATCH 0x20FCu
 
 static int cg_emit_addr16(cc_out_t *o, uint16_t addr) {
     if (cg_emit1(o, (unsigned char)(addr & 0xFFu)) != 0) return -1;
@@ -922,6 +924,10 @@ static int cg_binop(cc_codegen_t *cg, int idx) {
     if (!cg_node_ok(cg, idx)) return -1;
     n = &cg->nodes[idx];
     if (cg_expr(cg, n->left) != 0) return -1;
+    if (n->op == CC_TOK_AND_AND || n->op == CC_TOK_OR_OR) {
+        if (cg_emit1(cg->out, 0x32u) != 0) return -1; /* STA CC_LOGICAL_SCRATCH */
+        if (cg_emit_addr16(cg->out, CC_LOGICAL_SCRATCH) != 0) return -1;
+    }
     if (cg_emit1(cg->out, 0x47u) != 0) return -1; /* MOV B,A */
     if (cg_expr(cg, n->right) != 0) return -1;
     switch (n->op) {
@@ -1049,7 +1055,8 @@ static int cg_binop(cc_codegen_t *cg, int idx) {
         case CC_TOK_AND_AND: {
             if (cg_emit_boolify_a(cg) != 0) return -1;
             if (cg_emit1(cg->out, 0x4Fu) != 0) return -1; /* MOV C,A */
-            if (cg_emit1(cg->out, 0x78u) != 0) return -1; /* MOV A,B */
+            if (cg_emit1(cg->out, 0x3Au) != 0) return -1; /* LDA CC_LOGICAL_SCRATCH */
+            if (cg_emit_addr16(cg->out, CC_LOGICAL_SCRATCH) != 0) return -1;
             if (cg_emit_boolify_a(cg) != 0) return -1;
             if (cg_emit1(cg->out, 0xA1u) != 0) return -1; /* ANA C */
             return 0;
@@ -1057,7 +1064,8 @@ static int cg_binop(cc_codegen_t *cg, int idx) {
         case CC_TOK_OR_OR: {
             if (cg_emit_boolify_a(cg) != 0) return -1;
             if (cg_emit1(cg->out, 0x4Fu) != 0) return -1; /* MOV C,A */
-            if (cg_emit1(cg->out, 0x78u) != 0) return -1; /* MOV A,B */
+            if (cg_emit1(cg->out, 0x3Au) != 0) return -1; /* LDA CC_LOGICAL_SCRATCH */
+            if (cg_emit_addr16(cg->out, CC_LOGICAL_SCRATCH) != 0) return -1;
             if (cg_emit_boolify_a(cg) != 0) return -1;
             if (cg_emit1(cg->out, 0xB1u) != 0) return -1; /* ORA C */
             return 0;
@@ -1177,6 +1185,36 @@ static int cg_expr(cc_codegen_t *cg, int idx) {
                 if (cg_emit1(cg->out, 0x01u) != 0) return -1;
                 if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* MVI A,0 */
                 if (cg_emit1(cg->out, 0x00u) != 0) return -1;
+                return 0;
+            }
+            if (strcmp(callee, "readline") == 0) {
+                if (arg >= 0) return -1;
+                if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* MVI A,0x17 */
+                if (cg_emit1(cg->out, 0x17u) != 0) return -1;
+                if (cg_emit1(cg->out, 0xD3u) != 0) return -1; /* OUT 0x01 */
+                if (cg_emit1(cg->out, 0x01u) != 0) return -1;
+                if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* MVI A,0 */
+                if (cg_emit1(cg->out, 0x00u) != 0) return -1;
+                return 0;
+            }
+            if (strcmp(callee, "lineget") == 0) {
+                if (arg < 0) return -1;
+                if (cg_expr(cg, arg) != 0) return -1;
+                if (cg->nodes[arg].next >= 0) return -1;
+                if (cg_emit1(cg->out, 0x4Fu) != 0) return -1; /* MOV C,A */
+                if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* MVI A,0x18 */
+                if (cg_emit1(cg->out, 0x18u) != 0) return -1;
+                if (cg_emit1(cg->out, 0xD3u) != 0) return -1; /* OUT 0x01 */
+                if (cg_emit1(cg->out, 0x01u) != 0) return -1;
+                /* Return byte is in A from BIOS; do not clear A. */
+                return 0;
+            }
+            if (strcmp(callee, "linelen") == 0) {
+                if (arg >= 0) return -1;
+                if (cg_emit1(cg->out, 0x3Eu) != 0) return -1; /* MVI A,0x19 */
+                if (cg_emit1(cg->out, 0x19u) != 0) return -1;
+                if (cg_emit1(cg->out, 0xD3u) != 0) return -1; /* OUT 0x01 */
+                if (cg_emit1(cg->out, 0x01u) != 0) return -1;
                 return 0;
             }
             while (arg >= 0) {

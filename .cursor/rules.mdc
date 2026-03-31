@@ -62,6 +62,8 @@ After any code change, you must run the test suite before considering the task d
 - If tests fail, fix the issue and re-run `make test` until all tests pass
 - Do not mark work complete in `progress.md` or `remember.md` until tests pass
 
+**Timeouts when adding or changing tests:** Unless you are absolutely sure a timeout is unnecessary (for example, a pure compile-time unit test that cannot loop), give every path that could hang a bounded wait: shell scripts should wrap subprocesses with `timeout` / `gtimeout` or equivalent; C harnesses that drive the emulator with a step loop must cap total steps or wall time; integration tests that spawn `turingos` or the compiler must not run unbounded. Prefer explicit thresholds and clear failure messages over infinite waits.
+
 ---
 
 ## STEP 5 — UPDATE `progress.md` WHEN DONE
