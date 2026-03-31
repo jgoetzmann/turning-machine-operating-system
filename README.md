@@ -1,4 +1,4 @@
-Turning Machine Operating System
+Turing Machine Operating System
 
 This project is a proof of concept operating system built with heavy AI assistance to incorporate Turing machine ideas into a practical, interactive system. The goal is not to replace a production OS, but to explore what it looks like when core computational concepts are treated as first-class design elements.
 
